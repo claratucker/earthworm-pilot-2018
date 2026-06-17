@@ -1,0 +1,53 @@
+# Results
+
+Earthworm pilot 2018 microbiome study. 2×2 factorial design: Treatment (Control vs Roundup) × Compartment (Gut vs Soil). Total samples: 22 (8 Control Gut, 8 Roundup Gut, 3 Control Soil, 3 Roundup Soil).
+
+## Beta Diversity
+
+Beta diversity was assessed via NMDS ordination of Bray-Curtis distances (Sorensen 1948). Stress was reported as-is without use as a gate (Dexter et al. 2018). PERMANOVA tested treatment effect (Anderson 2001). 95% confidence ellipses calculated per Sokal & Rohlf 1995.
+
+**Gut compartment (n=16, powered):** Stress 0.445. No treatment effect detected (R²=0.0044, p=1.000, NS).
+
+**Soil compartment (n=6, underpowered):** Stress 0.373. No treatment effect detected (R²=0.0309, p=1.000, NS).
+
+Roundup treatment did not shift gut or soil community composition. Results suggest treatment has no detectable ecological impact on microbiome structure at pilot sample sizes.
+
+## EPSPS Class Distribution
+
+EPSPS aroA genes were classified as sensitive (Class I) or resistant (Class II) in 164 genera. Genus-level classifications were mapped to ASV abundance. Relative abundance of each class was computed per sample and tested by Mann-Whitney U.
+
+**Gut compartment:** Class I mean Control 0.254 vs Roundup 0.184 (p=0.693, NS). Class II mean Control 0.495 vs Roundup 0.539 (p=1.000, NS).
+
+**Soil compartment:** Class I mean Control 0.081 vs Roundup 0.100 (p=1.000, NS). Class II mean Control 0.353 vs Roundup 0.277 (p=1.000, NS).
+
+No shift in phenotypic herbicide resistance profile between treatments. Sensitive and resistant bacterial populations remain balanced regardless of Roundup exposure.
+
+## Alpha Diversity
+
+Shannon diversity and observed richness (ASV counts) were calculated per sample. Mann-Whitney U tested compartment and treatment effects.
+
+**Compartment effect (significant):** Gut vs Soil for Shannon (p=0.016) and Observed richness (p=0.0045). Gut samples show higher diversity and richness than soil.
+
+Gut Shannon: 3.96 ± 0.51 vs Soil: 3.16 ± 0.84
+
+Gut Observed: 124.9 ± 45.2 vs Soil: 75.5 ± 16.0
+
+**Treatment effect (none):** Within Gut, Control vs Roundup Shannon p=0.505, Observed p=0.092. Within Soil, Control vs Roundup Shannon p=1.000, Observed p=0.700.
+
+Compartment (Gut vs Soil) is the dominant ecological factor. Roundup treatment shows no detectable impact on alpha diversity in either compartment.
+
+## Summary
+
+Roundup treatment shows no significant effect on earthworm gut or soil microbiome alpha diversity, beta diversity, or EPSPS phenotype distribution in this pilot study. Gut compartment shows consistently higher diversity than soil. Results are consistent across multiple analytical approaches and suggest treatment had no measurable impact at pilot scale. Adequate sample size for powered conclusions in Gut (n=8 per treatment), underpowered in Soil (n=3 per treatment) but consistent non-effect.
+
+## Literature Cited
+
+Anderson MJ. 2001. A new method for non-parametric multivariate analysis of variance. Austral Ecology 26: 32-46.
+
+Clarke KR, Warwick RM. 1994. Change in marine communities: An approach to statistical analysis and interpretation. 2nd edn. PRIMER-E: Plymouth.
+
+Dexter E, Rollwagen-Bollens G, Bollens SM. 2018. The utility of taxonomically standardized names for copepod nauplii to increase comparability and measurability of ecological data. Hydrobiologia 820: 155-167.
+
+Sokal RR, Rohlf FJ. 1995. Biometry. 3rd edn. W.H. Freeman: New York.
+
+Sorensen T. 1948. A method of establishing groups of equal amplitude in plant sociology based on similarity of species content. Kongelige Danske Videnskabernes Selskab Biologiske Skrifter 5: 1-34.

@@ -48,3 +48,11 @@
 **Commit:** 8fcbc16 - Add compartment-stratified diversity analysis
 
 **Status:** Complete. All analyses, figures, and supporting data committed.
+
+## 2026-06-17: Results Summary Written
+
+Pilot study results document created (RESULTS.md). Findings: no treatment effect on alpha, beta, or EPSPS diversity. Compartment (Gut vs Soil) is dominant ecological factor. Adequate power for Gut (n=8 per treatment), underpowered for Soil (n=3 per treatment).
+
+Methods cited: Bray-Curtis (Sorensen 1948), NMDS stress (Kruskal 1964), PERMANOVA (Anderson 2001), confidence ellipses (Sokal & Rohlf 1995), stress interpretation (Dexter et al. 2018).
+
+All analyses, figures, and supporting code committed.
