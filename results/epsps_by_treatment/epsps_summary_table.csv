@@ -1,0 +1,5 @@
+Compartment,EPSPS Class,Control Mean,Control SD,Control n,Roundup Mean,Roundup SD,Roundup n,U Statistic,p-value,Significance
+Gut,Class I (Sensitive),0.2537,0.2937,8,0.1838,0.1079,8,29.0,0.7984,NS
+Gut,Class II (Resistant),0.4948,0.3372,8,0.5388,0.2340,8,32.0,1.0000,NS
+Soil,Class I (Sensitive),0.0815,0.0924,3,0.1003,0.0700,3,4.0,1.0000,NS
+Soil,Class II (Resistant),0.3526,0.2437,3,0.2773,0.1826,3,5.0,1.0000,NS
