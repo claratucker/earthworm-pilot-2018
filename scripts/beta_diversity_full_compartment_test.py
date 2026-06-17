@@ -2,23 +2,25 @@
 """Combined NMDS (all 22 samples) testing Gut vs Soil separation, plus
 PERMDISP test for within-group dispersion (heterogeneity) by compartment.
 
-PERMANOVA implemented per McArdle & Anderson (2001), the standard
-distance-based formulation building on Anderson (2001). Total sum of
-squares is computed from squared pairwise distances directly
-(SS_total = (1/n) * sum of all squared distances), and within-group sum
-of squares is computed the same way restricted to each group, avoiding
-the simple group-mean-distance approximation, which does not correctly
-reflect centroid separation in distance space.
+The combined plot shows all four compartment x treatment groups (Gut
+Control, Gut Roundup, Soil Control, Soil Roundup) with individual 95%
+confidence ellipses, so within-compartment treatment spread is visible
+on the same ordination used to test the compartment effect. The
+PERMANOVA and PERMDISP tests themselves still test compartment only
+(Gut vs Soil), consistent with the question this script is built to
+answer; treatment-effect tests within each compartment are reported
+separately in beta_diversity_by_compartment.py.
 
-PERMDISP (Anderson 2006) reported using the ANOVA-on-distance-to-centroid
-approximation (not full permutation PERMDISP), computed on an MDS
-embedding of the same distance matrix.
+PERMANOVA implemented per McArdle & Anderson (2001), the standard
+distance-based formulation building on Anderson (2001). PERMDISP
+(Anderson 2006) reported using the ANOVA-on-distance-to-centroid
+approximation, computed on an MDS embedding of the same distance matrix.
 """
 
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.spatial.distance import pdist, squareform
+from scipy.spatial.distance import pdist
 from sklearn.manifold import MDS
 from scipy.stats import f_oneway
 import warnings
@@ -70,15 +72,8 @@ def nmds_ordination(distance_matrix, n_dimensions=2, random_state=42):
 
 
 def permanova_sum_of_squares(dist_sq_matrix, group_labels):
-    """Compute PERMANOVA pseudo-F components per McArdle & Anderson (2001).
-
-    dist_sq_matrix: square matrix of squared distances (n x n)
-    group_labels: array of group assignments, length n
-    Returns SS_within (sum across groups) and SS_total.
-    """
     n = dist_sq_matrix.shape[0]
     ss_total = dist_sq_matrix.sum() / (2 * n)
-
     ss_within = 0
     unique_groups = np.unique(group_labels)
     for group in unique_groups:
@@ -88,12 +83,10 @@ def permanova_sum_of_squares(dist_sq_matrix, group_labels):
             continue
         group_sq_dists = dist_sq_matrix[np.ix_(idx, idx)]
         ss_within += group_sq_dists.sum() / (2 * n_i)
-
     return ss_within, ss_total
 
 
 def permanova_test(distance_matrix, metadata, group_column, n_permutations=999, random_state=42):
-    """PERMANOVA (McArdle & Anderson 2001) with permutation-based p-value."""
     groups = metadata[group_column].values
     dist_sq_matrix = distance_matrix.values ** 2
     n = len(groups)
@@ -122,7 +115,6 @@ def permanova_test(distance_matrix, metadata, group_column, n_permutations=999, 
 
 
 def permdisp_test(distance_matrix, metadata, group_column):
-    """PERMDISP (Anderson 2006), ANOVA-on-distance-to-centroid approximation."""
     groups = metadata[group_column].values
     unique_groups = np.unique(groups)
 
@@ -159,31 +151,45 @@ def confidence_ellipse(x, y, n_std=2.0):
     return scale_x, scale_y, mean_x, mean_y, 0
 
 
-def plot_combined_nmds(nmds_df, metadata, stress_value, permanova_results, output_file):
+def plot_combined_nmds(nmds_df, metadata, stress_value, permanova_results, permdisp_results, output_file):
+    """NMDS with all four compartment x treatment groups shown separately,
+    each with its own marker color and 95% confidence ellipse. Compartment
+    is encoded by marker shape (circle = Gut, square = Soil) in addition to
+    color, so the primary grouping variable being tested (compartment)
+    remains visually distinct from the secondary grouping (treatment).
+    """
     plot_data = nmds_df.reset_index().merge(metadata.reset_index(), left_on='index', right_on='sample')
     plot_data = plot_data.rename(columns={'index': 'sample'})
 
-    fig, ax = plt.subplots(figsize=(12, 10))
+    fig, ax = plt.subplots(figsize=(13, 11))
 
-    colors = {'Gut': '#2E8B57', 'Soil': '#8B5A3C'}
+    group_styles = {
+        ('Gut', 'Control'): {'color': '#90EE90', 'marker': 'o', 'label': 'Gut, Control'},
+        ('Gut', 'Roundup'): {'color': '#0B3D0B', 'marker': 'o', 'label': 'Gut, Roundup'},
+        ('Soil', 'Control'): {'color': '#F5DEB3', 'marker': 's', 'label': 'Soil, Control'},
+        ('Soil', 'Roundup'): {'color': '#654321', 'marker': 's', 'label': 'Soil, Roundup'}
+    }
 
-    for compartment in ['Gut', 'Soil']:
-        subset = plot_data[plot_data['compartment'] == compartment]
-        ax.scatter(subset['NMDS1'], subset['NMDS2'], c=colors[compartment], s=150,
-                  alpha=0.6, edgecolors='black', linewidth=0.8, label=compartment)
+    for (compartment, treatment), style in group_styles.items():
+        subset = plot_data[(plot_data['compartment'] == compartment) & (plot_data['treatment'] == treatment)]
+        if len(subset) == 0:
+            continue
+        ax.scatter(subset['NMDS1'], subset['NMDS2'], c=style['color'], marker=style['marker'],
+                  s=150, alpha=0.7, edgecolors='black', linewidth=0.8, label=style['label'])
 
         centroid_x, centroid_y = subset['NMDS1'].mean(), subset['NMDS2'].mean()
-        ax.scatter(centroid_x, centroid_y, c=colors[compartment], marker='+', s=400,
+        ax.scatter(centroid_x, centroid_y, c=style['color'], marker='+', s=400,
                   linewidth=3, edgecolors='black', zorder=5)
 
-        scale_x, scale_y, mean_x, mean_y, _ = confidence_ellipse(subset['NMDS1'].values, subset['NMDS2'].values)
-        if scale_x > 0 and scale_y > 0:
-            ellipse = Ellipse((0, 0), width=scale_x*2, height=scale_y*2,
-                            facecolor=colors[compartment], alpha=0.15,
-                            edgecolor=colors[compartment], linewidth=2, linestyle='--')
-            transf = transforms.Affine2D().scale(scale_x, scale_y).translate(mean_x, mean_y)
-            ellipse.set_transform(transf + ax.transData)
-            ax.add_patch(ellipse)
+        if len(subset) >= 2:
+            scale_x, scale_y, mean_x, mean_y, _ = confidence_ellipse(subset['NMDS1'].values, subset['NMDS2'].values)
+            if scale_x > 0 and scale_y > 0:
+                ellipse = Ellipse((0, 0), width=scale_x*2, height=scale_y*2,
+                                facecolor=style['color'], alpha=0.12,
+                                edgecolor=style['color'], linewidth=2, linestyle='--')
+                transf = transforms.Affine2D().scale(scale_x, scale_y).translate(mean_x, mean_y)
+                ellipse.set_transform(transf + ax.transData)
+                ax.add_patch(ellipse)
 
     ax.set_xlabel('NMDS1', fontsize=12)
     ax.set_ylabel('NMDS2', fontsize=12)
@@ -197,16 +203,19 @@ def plot_combined_nmds(nmds_df, metadata, stress_value, permanova_results, outpu
 
     ax.set_title(f'NMDS: All Samples, Bray-Curtis Distances\n(Stress = {stress_value:.3f}, {stress_interp})',
                 fontsize=13, fontweight='bold')
-    ax.legend(loc='best', fontsize=11, framealpha=0.9)
+    ax.legend(loc='best', fontsize=10, framealpha=0.9, title='Compartment, Treatment')
     ax.grid(True, alpha=0.3, linestyle=':')
 
     stats_text = (f'All samples (n={len(plot_data)})\n'
-                 f'R² (compartment) = {permanova_results["r_squared"]:.4f}\n'
-                 f'pseudo-F = {permanova_results["pseudo_f"]:.4f}\n'
-                 f'p = {permanova_results["p_value"]:.4f} '
-                 f'({permanova_results["n_permutations"]} permutations)')
+                 f'Compartment effect (PERMANOVA):\n'
+                 f'  R² = {permanova_results["r_squared"]:.4f}, pseudo-F = {permanova_results["pseudo_f"]:.4f}\n'
+                 f'  p = {permanova_results["p_value"]:.4f} ({permanova_results["n_permutations"]} permutations)\n'
+                 f'Compartment dispersion (PERMDISP):\n'
+                 f'  F = {permdisp_results["f_statistic"]:.4f}, p = {permdisp_results["p_value"]:.4f}\n'
+                 f'Circles = Gut, Squares = Soil\n'
+                 f'Dashed ellipses = 95% CI per group')
     ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, verticalalignment='top',
-           fontsize=10, bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
+           fontsize=9, bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.85))
 
     plt.tight_layout()
     plt.savefig(output_file, dpi=300, bbox_inches='tight')
@@ -247,9 +256,9 @@ if __name__ == '__main__':
     print()
 
     print("Creating plot...")
-    plot_combined_nmds(nmds_scores, metadata, stress, permanova_results,
+    plot_combined_nmds(nmds_scores, metadata, stress, permanova_results, permdisp_results,
                        'results/beta_diversity_combined/nmds_all_samples_compartment.pdf')
-    plot_combined_nmds(nmds_scores, metadata, stress, permanova_results,
+    plot_combined_nmds(nmds_scores, metadata, stress, permanova_results, permdisp_results,
                        'results/figures/figure_6_nmds_all_samples_gut_vs_soil.pdf')
 
     nmds_scores.to_csv('results/beta_diversity_combined/nmds_scores.csv')
