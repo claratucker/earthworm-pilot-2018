@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Taxonomic composition (top genera) by treatment and compartment.
+"""Taxonomic composition (top genera) by treatment, gut vs soil.
 
-Genus colors are consistent across Gut and Soil panels so compositional
-differences between compartments are directly comparable. Treatment
-(Control vs Roundup) is shown as a highlighted background box behind each
-x-axis tick label rather than via bar color, since bar color encodes genus
-identity. Genera not in the top N are pooled into "Other (<1% each)" using
-an explicit relative abundance gate, defined below.
+Genus colors are consistent across both panels so compositional
+differences are directly comparable. Treatment (Control vs Roundup) is
+shown as a highlighted background box behind each x-axis tick label rather
+than via bar color, since bar color encodes genus identity. Genera below
+an explicit relative abundance threshold are pooled into "Other" and
+labeled with that threshold.
 """
 
 import pandas as pd
@@ -48,10 +48,6 @@ feature_by_genus = feature_by_genus.fillna(0)
 
 feature_by_genus_rel = feature_by_genus.div(feature_by_genus.sum(axis=0), axis=1)
 
-# "Other" gate: any genus whose mean relative abundance across all samples
-# falls below this threshold is pooled into "Other". This is an abundance
-# filter for display purposes only, it does not affect any statistical
-# test reported elsewhere in the pipeline.
 OTHER_THRESHOLD = 0.01  # 1% mean relative abundance across all samples
 
 mean_abundance = feature_by_genus_rel.mean(axis=1)
@@ -73,14 +69,12 @@ qualitative_colors = sns.color_palette("tab20", len(top_genera))
 genus_color_map = dict(zip(top_genera, qualitative_colors))
 genus_color_map[other_label] = '#BBBBBB'
 
-# Treatment highlight box colors, shown behind x-axis tick labels.
 treatment_box_colors = {
     ('Gut', 'Control'): '#90EE90',
     ('Gut', 'Roundup'): '#0B3D0B',
     ('Soil', 'Control'): '#F5DEB3',
     ('Soil', 'Roundup'): '#654321'
 }
-# Text color chosen for contrast against the highlight box (dark boxes need light text)
 treatment_text_colors = {
     ('Gut', 'Control'): 'black',
     ('Gut', 'Roundup'): 'white',
@@ -88,7 +82,7 @@ treatment_text_colors = {
     ('Soil', 'Roundup'): 'white'
 }
 
-fig, axes = plt.subplots(1, 2, figsize=(17, 7))
+fig, axes = plt.subplots(1, 2, figsize=(18, 7))
 
 for ax_idx, compartment in enumerate(['Gut', 'Soil']):
     ax = axes[ax_idx]
@@ -109,10 +103,10 @@ for ax_idx, compartment in enumerate(['Gut', 'Soil']):
         bottom += values
 
     ax.set_ylabel('Relative Abundance', fontsize=12)
-    ax.set_xlabel('Sample', fontsize=12)
-    ax.set_title(f'Taxonomic Composition, {compartment} Compartment', fontsize=13, fontweight='bold')
+    ax.set_title(compartment, fontsize=14, fontweight='bold')
     ax.set_xticks(range(len(comp_data)))
     ax.set_xticklabels(comp_data.index, rotation=45, ha='right', fontsize=9)
+    ax.set_xlabel('')
 
     for tick_idx, sample in enumerate(comp_data.index):
         treatment = comp_data.loc[sample, 'treatment']
@@ -134,7 +128,9 @@ handles, labels = axes[0].get_legend_handles_labels()
 fig.legend(handles, labels, loc='center left', bbox_to_anchor=(1.0, 0.5),
           fontsize=9, framealpha=0.9, title='Genus')
 
-plt.tight_layout(rect=[0, 0, 0.88, 1])
+fig.suptitle('Taxonomic Composition by Treatment', fontsize=15, fontweight='bold', y=1.02)
+
+plt.tight_layout(rect=[0, 0, 0.86, 1])
 plt.savefig('results/taxa_composition/taxa_composition_by_treatment.pdf', dpi=300, bbox_inches='tight')
 plt.savefig('results/figures/figure_5_taxa_composition.pdf', dpi=300, bbox_inches='tight')
 print("Saved: results/taxa_composition/taxa_composition_by_treatment.pdf")
@@ -144,7 +140,7 @@ composition.to_csv('results/taxa_composition/taxa_composition_by_sample.csv')
 print("Saved: results/taxa_composition/taxa_composition_by_sample.csv")
 
 print("\n" + "=" * 70)
-print("MEAN RELATIVE ABUNDANCE BY TREATMENT AND COMPARTMENT")
+print("MEAN RELATIVE ABUNDANCE BY TREATMENT")
 print("=" * 70)
 
 for compartment in ['Gut', 'Soil']:
