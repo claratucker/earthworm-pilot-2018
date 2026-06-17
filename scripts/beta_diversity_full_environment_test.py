@@ -164,9 +164,9 @@ def plot_combined_nmds(nmds_df, metadata, stress_value, permanova_results, permd
     fig, ax = plt.subplots(figsize=(13, 11))
 
     group_styles = {
-        ('Gut', 'Control'): {'color': '#90EE90', 'marker': 'o', 'label': 'Gut, Control'},
+        ('Gut', 'Control'): {'color': '#3CB043', 'marker': 'o', 'label': 'Gut, Control'},
         ('Gut', 'Roundup'): {'color': '#0B3D0B', 'marker': 'o', 'label': 'Gut, Roundup'},
-        ('Soil', 'Control'): {'color': '#F5DEB3', 'marker': 's', 'label': 'Soil, Control'},
+        ('Soil', 'Control'): {'color': '#C9A876', 'marker': 's', 'label': 'Soil, Control'},
         ('Soil', 'Roundup'): {'color': '#654321', 'marker': 's', 'label': 'Soil, Roundup'}
     }
 
