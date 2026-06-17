@@ -12,7 +12,6 @@ feature_table = pd.read_csv('r/exported/feature-table.tsv', sep='\t', index_col=
 taxonomy = pd.read_csv('r/exported/taxonomy.tsv', sep='\t', index_col=0)
 epsps = pd.read_csv('epsps/epsps_classified.tsv', sep='\t', index_col=0)
 
-# Extract genus from taxonomy
 def extract_genus_from_taxon(taxon_string):
     if pd.isna(taxon_string):
         return None
@@ -26,12 +25,6 @@ def extract_genus_from_taxon(taxon_string):
 taxonomy['genus'] = taxonomy['Taxon'].apply(extract_genus_from_taxon)
 epsps['genus'] = epsps.index.str.split('|').str[0]
 
-print(f"  Feature table: {feature_table.shape[0]} ASVs")
-print(f"  Taxonomy with genus: {taxonomy['genus'].notna().sum()} entries")
-print(f"  EPSPS with genus: {epsps['genus'].notna().sum()} entries")
-print()
-
-# Parse sample metadata
 def parse_metadata(sample_names):
     metadata_list = []
     for sample in sample_names:
@@ -48,7 +41,6 @@ for genus in epsps['genus'].dropna().unique():
     genus_epsps = epsps[epsps['genus'] == genus].iloc[0]
     genus_to_class[genus] = genus_epsps['primary_class']
 
-# For each sample, calculate relative abundance of each EPSPS class
 results = []
 
 for sample in feature_table.columns:
@@ -91,8 +83,7 @@ for sample in feature_table.columns:
         'treatment': treatment,
         'compartment': compartment,
         'class_I_sensitive': rel_class_i,
-        'class_II_resistant': rel_class_ii,
-        'total_classified_reads': total_classified
+        'class_II_resistant': rel_class_ii
     })
 
 results_df = pd.DataFrame(results)
@@ -104,7 +95,6 @@ print()
 print(results_df.groupby('treatment')[['class_I_sensitive', 'class_II_resistant']].agg(['mean', 'std', 'count']))
 print()
 
-# Statistical tests
 print("=" * 70)
 print("STATISTICAL TESTS (Mann-Whitney U)")
 print("=" * 70)
@@ -130,15 +120,17 @@ print(f"  Roundup (n={len(roundup_class_ii)}): mean={roundup_class_ii.mean():.4f
 print(f"  Mann-Whitney U: U={u_stat:.1f}, p={p_value_ii:.4f}")
 print()
 
-# Plot with stats
+# Plot with p-values
 fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+
+colors_palette = ['#90EE90', '#0B3D0B']  # Light and dark green for Class I/II comparison
 
 for idx, (col, title, p_val) in enumerate([
     ('class_I_sensitive', 'Class I (Sensitive)', p_value_i),
     ('class_II_resistant', 'Class II (Resistant)', p_value_ii)
 ]):
     ax = axes[idx]
-    sns.boxplot(data=results_df, x='treatment', y=col, ax=ax, palette=['#D2B48C', '#654321'])
+    sns.boxplot(data=results_df, x='treatment', y=col, ax=ax, palette=colors_palette)
     sns.stripplot(data=results_df, x='treatment', y=col, ax=ax, color='black', alpha=0.4, size=6)
     ax.set_ylabel('Relative Abundance', fontsize=11)
     ax.set_xlabel('Treatment', fontsize=11)
@@ -146,8 +138,7 @@ for idx, (col, title, p_val) in enumerate([
     ax.grid(True, alpha=0.3, axis='y')
     
     # Add p-value
-    sig_text = "NS" if p_val >= 0.05 else f"p={p_val:.3f}"
-    ax.text(0.5, 0.95, sig_text, transform=ax.transAxes,
+    ax.text(0.5, 0.95, f'p = {p_val:.4f}', transform=ax.transAxes,
            ha='center', va='top', fontsize=11, fontweight='bold',
            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
 

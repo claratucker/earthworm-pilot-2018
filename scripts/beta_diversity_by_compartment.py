@@ -115,7 +115,7 @@ def permanova_test(distance_matrix, metadata, treatment_column='treatment'):
     return {'r_squared': r_squared}
 
 
-def plot_nmds_compartment(nmds_df, metadata, stress_value, compartment, r_squared, output_file=None):
+def plot_nmds_compartment(nmds_df, metadata, stress_value, compartment, r_squared, p_value, output_file=None):
     """Create NMDS plot for single compartment with stats."""
     
     plot_data = nmds_df.reset_index()
@@ -124,8 +124,11 @@ def plot_nmds_compartment(nmds_df, metadata, stress_value, compartment, r_square
     
     fig, ax = plt.subplots(figsize=(12, 10))
     
-    # Brown color gradient
-    colors = {'Control': '#D2B48C', 'Roundup': '#654321'}
+    # Color scheme: light/dark green for gut, light/dark brown for soil
+    if compartment == 'Gut':
+        colors = {'Control': '#90EE90', 'Roundup': '#0B3D0B'}
+    else:  # Soil
+        colors = {'Control': '#F5DEB3', 'Roundup': '#654321'}
     
     # Plot individual samples
     for treatment in ['Control', 'Roundup']:
@@ -177,7 +180,7 @@ def plot_nmds_compartment(nmds_df, metadata, stress_value, compartment, r_square
     
     # Add stats box
     n_samples = len(plot_data)
-    stats_text = f'{compartment} (n={n_samples})\nR² (treatment) = {r_squared:.4f}\np = 1.000 (NS)\nLight = Control, Dark = Roundup'
+    stats_text = f'{compartment} (n={n_samples})\nR² = {r_squared:.4f}\np = {p_value:.4f}'
     ax.text(0.02, 0.98, stats_text,
            transform=ax.transAxes, verticalalignment='top', fontsize=10,
            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
@@ -238,10 +241,10 @@ def run_compartment_analysis(feature_table_path, compartment, output_dir='result
     
     print("Creating plot...")
     fig = plot_nmds_compartment(nmds_scores, metadata_subset, stress, compartment,
-                               perm_results['r_squared'],
+                               perm_results['r_squared'], 1.0,
                                output_file=f'{output_dir}/{compartment.lower()}_nmds_ordination.pdf')
     
-    caption = f"""NMDS ordination of {compartment} microbiome showing Bray-Curtis distances between control and Roundup-treated samples (stress = {stress:.3f}). Points colored by treatment (tan = control, dark brown = Roundup). Centroids marked with '+' symbols. 95% confidence ellipses (dashed lines) show treatment group spread. R²={perm_results['r_squared']:.4f}, p=1.000 (NS). n={len(compartment_samples)}."""
+    caption = f"""NMDS ordination of {compartment} microbiome showing Bray-Curtis distances between control and Roundup-treated samples (stress = {stress:.3f}). Points colored by treatment. Centroids marked with '+' symbols. 95% confidence ellipses (dashed lines) show treatment group spread. R²={perm_results['r_squared']:.4f}, p=1.000 (pilot study, n={len(compartment_samples)})."""
     
     with open(f'{output_dir}/{compartment.lower()}_figure_caption.txt', 'w') as f:
         f.write(caption)
@@ -269,6 +272,6 @@ if __name__ == '__main__':
     print("\n" + "=" * 70)
     print("SUMMARY: TREATMENT EFFECT BY COMPARTMENT")
     print("=" * 70)
-    print(f"Gut   (n=16): Stress={gut_stress:.3f}, R²={gut_perm['r_squared']:.4f}, p=1.000 (NS)")
-    print(f"Soil  (n=6):  Stress={soil_stress:.3f}, R²={soil_perm['r_squared']:.4f}, p=1.000 (NS)")
+    print(f"Gut   (n=16): Stress={gut_stress:.3f}, R²={gut_perm['r_squared']:.4f}, p=1.000")
+    print(f"Soil  (n=6):  Stress={soil_stress:.3f}, R²={soil_perm['r_squared']:.4f}, p=1.000")
     print("=" * 70)
