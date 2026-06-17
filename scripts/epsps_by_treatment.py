@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Analyze EPSPS Class I/II balance by treatment."""
+"""Analyze EPSPS Class I/II balance by treatment and compartment."""
 
 import pandas as pd
 import numpy as np
@@ -89,10 +89,10 @@ for sample in feature_table.columns:
 results_df = pd.DataFrame(results)
 
 print("=" * 70)
-print("EPSPS CLASS RELATIVE ABUNDANCE BY TREATMENT")
+print("EPSPS CLASS RELATIVE ABUNDANCE BY TREATMENT AND COMPARTMENT")
 print("=" * 70)
 print()
-print(results_df.groupby('treatment')[['class_I_sensitive', 'class_II_resistant']].agg(['mean', 'std', 'count']))
+print(results_df.groupby(['compartment', 'treatment'])[['class_I_sensitive', 'class_II_resistant']].agg(['mean', 'std', 'count']))
 print()
 
 print("=" * 70)
@@ -100,53 +100,75 @@ print("STATISTICAL TESTS (Mann-Whitney U)")
 print("=" * 70)
 print()
 
-control_class_i = results_df[results_df['treatment'] == 'Control']['class_I_sensitive'].values
-roundup_class_i = results_df[results_df['treatment'] == 'Roundup']['class_I_sensitive'].values
+p_values = {}
 
-u_stat, p_value_i = mannwhitneyu(control_class_i, roundup_class_i)
-print(f"Class I (Sensitive) by Treatment:")
-print(f"  Control (n={len(control_class_i)}): mean={control_class_i.mean():.4f}, sd={control_class_i.std():.4f}")
-print(f"  Roundup (n={len(roundup_class_i)}): mean={roundup_class_i.mean():.4f}, sd={roundup_class_i.std():.4f}")
-print(f"  Mann-Whitney U: U={u_stat:.1f}, p={p_value_i:.4f}")
-print()
-
-control_class_ii = results_df[results_df['treatment'] == 'Control']['class_II_resistant'].values
-roundup_class_ii = results_df[results_df['treatment'] == 'Roundup']['class_II_resistant'].values
-
-u_stat, p_value_ii = mannwhitneyu(control_class_ii, roundup_class_ii)
-print(f"Class II (Resistant) by Treatment:")
-print(f"  Control (n={len(control_class_ii)}): mean={control_class_ii.mean():.4f}, sd={control_class_ii.std():.4f}")
-print(f"  Roundup (n={len(roundup_class_ii)}): mean={roundup_class_ii.mean():.4f}, sd={roundup_class_ii.std():.4f}")
-print(f"  Mann-Whitney U: U={u_stat:.1f}, p={p_value_ii:.4f}")
-print()
-
-# Plot with p-values
-fig, axes = plt.subplots(1, 2, figsize=(14, 6))
-
-colors_palette = ['#90EE90', '#0B3D0B']  # Light and dark green for Class I/II comparison
-
-for idx, (col, title, p_val) in enumerate([
-    ('class_I_sensitive', 'Class I (Sensitive)', p_value_i),
-    ('class_II_resistant', 'Class II (Resistant)', p_value_ii)
-]):
-    ax = axes[idx]
-    sns.boxplot(data=results_df, x='treatment', y=col, ax=ax, palette=colors_palette)
-    sns.stripplot(data=results_df, x='treatment', y=col, ax=ax, color='black', alpha=0.4, size=6)
-    ax.set_ylabel('Relative Abundance', fontsize=11)
-    ax.set_xlabel('Treatment', fontsize=11)
-    ax.set_title(f'{title} by Treatment', fontsize=12, fontweight='bold')
-    ax.grid(True, alpha=0.3, axis='y')
+for compartment in ['Gut', 'Soil']:
+    print(f"\n{compartment.upper()} COMPARTMENT")
+    print()
     
-    # Add p-value
-    ax.text(0.5, 0.95, f'p = {p_val:.4f}', transform=ax.transAxes,
-           ha='center', va='top', fontsize=11, fontweight='bold',
-           bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
+    comp_data = results_df[results_df['compartment'] == compartment]
+    
+    control_class_i = comp_data[comp_data['treatment'] == 'Control']['class_I_sensitive'].values
+    roundup_class_i = comp_data[comp_data['treatment'] == 'Roundup']['class_I_sensitive'].values
+    
+    u_stat, p_value_i = mannwhitneyu(control_class_i, roundup_class_i)
+    p_values[f'I_{compartment}'] = p_value_i
+    print(f"Class I (Sensitive) by Treatment:")
+    print(f"  Control (n={len(control_class_i)}): mean={control_class_i.mean():.4f}, sd={control_class_i.std():.4f}")
+    print(f"  Roundup (n={len(roundup_class_i)}): mean={roundup_class_i.mean():.4f}, sd={roundup_class_i.std():.4f}")
+    print(f"  Mann-Whitney U: U={u_stat:.1f}, p={p_value_i:.4f}")
+    print()
+    
+    control_class_ii = comp_data[comp_data['treatment'] == 'Control']['class_II_resistant'].values
+    roundup_class_ii = comp_data[comp_data['treatment'] == 'Roundup']['class_II_resistant'].values
+    
+    u_stat, p_value_ii = mannwhitneyu(control_class_ii, roundup_class_ii)
+    p_values[f'II_{compartment}'] = p_value_ii
+    print(f"Class II (Resistant) by Treatment:")
+    print(f"  Control (n={len(control_class_ii)}): mean={control_class_ii.mean():.4f}, sd={control_class_ii.std():.4f}")
+    print(f"  Roundup (n={len(roundup_class_ii)}): mean={roundup_class_ii.mean():.4f}, sd={roundup_class_ii.std():.4f}")
+    print(f"  Mann-Whitney U: U={u_stat:.1f}, p={p_value_ii:.4f}")
+    print()
+
+# Plot 2x2: Class (I, II) x Compartment (Gut, Soil)
+fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+
+classes = [('class_I_sensitive', 'I'), ('class_II_resistant', 'II')]
+class_titles = ['Class I (Sensitive)', 'Class II (Resistant)']
+compartments = ['Gut', 'Soil']
+color_schemes = {
+    'Gut': ['#90EE90', '#0B3D0B'],
+    'Soil': ['#F5DEB3', '#654321']
+}
+
+for row, ((class_col, class_key), class_title) in enumerate(zip(classes, class_titles)):
+    for col, compartment in enumerate(compartments):
+        ax = axes[row, col]
+        
+        comp_data = results_df[results_df['compartment'] == compartment]
+        
+        p_val = p_values[f'{class_key}_{compartment}']
+        
+        sns.boxplot(data=comp_data, x='treatment', y=class_col, ax=ax,
+                   palette=color_schemes[compartment])
+        sns.stripplot(data=comp_data, x='treatment', y=class_col, ax=ax,
+                     color='black', alpha=0.4, size=6)
+        
+        ax.set_ylabel('Relative Abundance', fontsize=11)
+        ax.set_xlabel('Treatment', fontsize=11)
+        ax.set_title(f'{class_title} by Treatment\n{compartment} Compartment', 
+                    fontsize=12, fontweight='bold')
+        ax.grid(True, alpha=0.3, axis='y')
+        
+        ax.text(0.5, 0.95, f'p = {p_val:.4f}', transform=ax.transAxes,
+               ha='center', va='top', fontsize=11, fontweight='bold',
+               bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
 
 plt.tight_layout()
-plt.savefig('results/epsps_by_treatment.pdf', dpi=300, bbox_inches='tight')
-print("Saved: results/epsps_by_treatment.pdf")
+plt.savefig('results/epsps_by_treatment/epsps_by_treatment.pdf', dpi=300, bbox_inches='tight')
+print("Saved: results/epsps_by_treatment/epsps_by_treatment.pdf")
 
-results_df.to_csv('results/epsps_by_treatment.csv', index=False)
-print("Saved: results/epsps_by_treatment.csv")
+results_df.to_csv('results/epsps_by_treatment/epsps_by_treatment.csv', index=False)
+print("Saved: results/epsps_by_treatment/epsps_by_treatment.csv")
 
 print("=" * 70)

@@ -6,6 +6,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.stats import mannwhitneyu
+import warnings
+warnings.filterwarnings('ignore')
 
 print("Loading alpha diversity data...")
 alpha = pd.read_csv('r/alpha_diversity.csv', index_col=0)
@@ -45,19 +47,20 @@ for metric in ['Shannon', 'Observed']:
         print(f"    Roundup (n={len(roundup)}): {roundup.mean():.4f} ± {roundup.std():.4f}")
         print()
 
-# Plot
+# Plot 2x2: Metric (Shannon, Observed) x Comparison (by compartment, by treatment)
 fig, axes = plt.subplots(2, 2, figsize=(14, 10))
 
 metrics = [('Shannon', 'Shannon Diversity'), ('Observed', 'Observed Richness')]
 
-for row, (metric, title) in enumerate(metrics):
-    # By compartment
+for row, (metric, metric_title) in enumerate(metrics):
+    
+    # Left: By compartment (both treatments combined)
     ax = axes[row, 0]
     sns.boxplot(data=alpha, x='compartment', y=metric, ax=ax, palette=['#C9A876', '#8B5A3C'])
     sns.stripplot(data=alpha, x='compartment', y=metric, ax=ax, color='black', alpha=0.4, size=6)
     ax.set_xlabel('Compartment', fontsize=11)
-    ax.set_ylabel(title, fontsize=11)
-    ax.set_title(f'{title} by Compartment', fontsize=12, fontweight='bold')
+    ax.set_ylabel(metric_title, fontsize=11)
+    ax.set_title(f'{metric_title} by Compartment', fontsize=12, fontweight='bold')
     ax.grid(True, alpha=0.3, axis='y')
     
     p_val = p_values[f'{metric}_compartment']
@@ -65,36 +68,64 @@ for row, (metric, title) in enumerate(metrics):
            ha='center', va='top', fontsize=10, fontweight='bold',
            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
     
-    # By treatment within compartment
+    # Right: By treatment within compartment
     ax = axes[row, 1]
     
-    # Create custom palette for each compartment with light/dark colors
-    gut_data = alpha[alpha['compartment'] == 'Gut']
-    soil_data = alpha[alpha['compartment'] == 'Soil']
+    color_schemes = {
+        'Gut': ['#90EE90', '#0B3D0B'],
+        'Soil': ['#F5DEB3', '#654321']
+    }
     
-    # Plot separately to use correct colors
-    for compartment, color_palette in [('Gut', ['#90EE90', '#0B3D0B']), ('Soil', ['#F5DEB3', '#654321'])]:
+    x_pos = 0
+    positions = []
+    labels = []
+    tick_positions = []
+    tick_labels = []
+    
+    for comp_idx, compartment in enumerate(['Gut', 'Soil']):
         comp_data = alpha[alpha['compartment'] == compartment]
+        
         for treat_idx, treatment in enumerate(['Control', 'Roundup']):
             subset = comp_data[comp_data['treatment'] == treatment]
-            ax.scatter([compartment]*len(subset), subset[metric],
-                      color=color_palette[treat_idx], s=100, alpha=0.6,
-                      edgecolors='black', linewidth=0.8, label=f'{compartment} {treatment}')
+            ax.scatter([x_pos]*len(subset), subset[metric],
+                      color=color_schemes[compartment][treat_idx], s=100, alpha=0.6,
+                      edgecolors='black', linewidth=0.8)
             
-            # Add box for each group
-            pos = ['Gut', 'Soil'].index(compartment)
-            bp = ax.boxplot([subset[metric]], positions=[pos + (treat_idx-0.2)], widths=0.35,
+            bp = ax.boxplot([subset[metric]], positions=[x_pos], widths=0.4,
                            patch_artist=True, showfliers=False)
             for patch in bp['boxes']:
-                patch.set_facecolor(color_palette[treat_idx])
-                patch.set_alpha(0.3)
+                patch.set_facecolor(color_schemes[compartment][treat_idx])
+                patch.set_alpha(0.4)
+                patch.set_linewidth(1.5)
+            
+            x_pos += 1
+        
+        # Add separator and label
+        if comp_idx == 0:
+            tick_positions.append(0.5)
+            tick_labels.append('Gut')
+        else:
+            tick_positions.append(2.5)
+            tick_labels.append('Soil')
+        
+        x_pos += 0.5
     
-    ax.set_xlabel('Compartment', fontsize=11)
-    ax.set_ylabel(title, fontsize=11)
-    ax.set_title(f'{title} by Compartment and Treatment', fontsize=12, fontweight='bold')
+    ax.set_xticks(tick_positions)
+    ax.set_xticklabels(tick_labels, fontsize=11)
+    ax.set_ylabel(metric_title, fontsize=11)
+    ax.set_title(f'{metric_title} by Treatment\nwithin Compartment', fontsize=12, fontweight='bold')
     ax.grid(True, alpha=0.3, axis='y')
-    ax.set_xticks([0, 1])
-    ax.set_xticklabels(['Gut', 'Soil'])
+    ax.set_xlim(-0.5, x_pos - 0.5)
+    
+    # Add legend
+    from matplotlib.patches import Patch
+    legend_elements = [
+        Patch(facecolor='#90EE90', edgecolor='black', label='Gut Control'),
+        Patch(facecolor='#0B3D0B', edgecolor='black', label='Gut Roundup'),
+        Patch(facecolor='#F5DEB3', edgecolor='black', label='Soil Control'),
+        Patch(facecolor='#654321', edgecolor='black', label='Soil Roundup')
+    ]
+    ax.legend(handles=legend_elements, loc='upper right', fontsize=9)
     
     # Add p-values for treatment comparisons
     p_gut = p_values[f'{metric}_Gut']
@@ -106,10 +137,10 @@ for row, (metric, title) in enumerate(metrics):
            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
 
 plt.tight_layout()
-plt.savefig('results/alpha_diversity_by_compartment.pdf', dpi=300, bbox_inches='tight')
-print("\nSaved: results/alpha_diversity_by_compartment.pdf")
+plt.savefig('results/alpha_diversity_by_compartment/alpha_diversity_by_compartment.pdf', dpi=300, bbox_inches='tight')
+print("\nSaved: results/alpha_diversity_by_compartment/alpha_diversity_by_compartment.pdf")
 
-alpha.to_csv('results/alpha_diversity_by_compartment.csv')
-print("Saved: results/alpha_diversity_by_compartment.csv")
+alpha.to_csv('results/alpha_diversity_by_compartment/alpha_diversity_by_compartment.csv')
+print("Saved: results/alpha_diversity_by_compartment/alpha_diversity_by_compartment.csv")
 
 print("=" * 70)
