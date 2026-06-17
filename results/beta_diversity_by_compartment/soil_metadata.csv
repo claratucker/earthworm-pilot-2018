@@ -1,0 +1,7 @@
+sample,treatment,compartment,replicate
+C1.Soil,Control,Soil,1
+C2.Soil,Control,Soil,2
+C3.Soil,Control,Soil,3
+R1.Soil,Roundup,Soil,1
+R2.Soil,Roundup,Soil,2
+R3.Soil,Roundup,Soil,3

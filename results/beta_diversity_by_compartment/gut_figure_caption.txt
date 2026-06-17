@@ -1,0 +1,1 @@
+NMDS ordination of Gut microbiome showing Bray-Curtis distances between control and Roundup-treated samples (stress = 0.445). Points colored by treatment (light blue = control, dark blue = Roundup). Centroids marked with '+' symbols. 95% confidence ellipses (dashed lines) show treatment group spread. n=16.

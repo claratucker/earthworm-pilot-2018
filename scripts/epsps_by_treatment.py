@@ -1,0 +1,170 @@
+#!/usr/bin/env python3
+"""Analyze EPSPS Class I/II balance by treatment."""
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from scipy.stats import mannwhitneyu
+
+print("Loading data...")
+feature_table = pd.read_csv('r/exported/feature-table.tsv', sep='\t', index_col=0, skiprows=1)
+taxonomy = pd.read_csv('r/exported/taxonomy.tsv', sep='\t', index_col=0)
+epsps = pd.read_csv('epsps/epsps_classified.tsv', sep='\t', index_col=0)
+
+# Extract genus from taxonomy
+def extract_genus_from_taxon(taxon_string):
+    """Extract genus from QIIME2 taxonomy string."""
+    if pd.isna(taxon_string):
+        return None
+    parts = taxon_string.split(';')
+    for part in parts:
+        if part.startswith('g__'):
+            genus = part.replace('g__', '').strip()
+            return genus if genus else None
+    return None
+
+taxonomy['genus'] = taxonomy['Taxon'].apply(extract_genus_from_taxon)
+
+# Extract genus from EPSPS (format: Genus|ProteinID)
+epsps['genus'] = epsps.index.str.split('|').str[0]
+
+print(f"  Feature table: {feature_table.shape[0]} ASVs")
+print(f"  Taxonomy with genus: {taxonomy['genus'].notna().sum()} entries")
+print(f"  EPSPS with genus: {epsps['genus'].notna().sum()} entries")
+print()
+
+# Check overlap
+tax_genera = set(taxonomy['genus'].dropna().unique())
+epsps_genera = set(epsps['genus'].dropna().unique())
+overlap = tax_genera & epsps_genera
+print(f"Genera in taxonomy: {len(tax_genera)}")
+print(f"Genera in EPSPS: {len(epsps_genera)}")
+print(f"Overlapping genera: {len(overlap)}")
+print()
+
+# Parse sample metadata
+def parse_metadata(sample_names):
+    metadata_list = []
+    for sample in sample_names:
+        treatment = 'Control' if sample[0] == 'C' else 'Roundup'
+        compartment = 'Gut' if '.In' in sample else 'Soil'
+        metadata_list.append({'sample': sample, 'treatment': treatment, 'compartment': compartment})
+    return pd.DataFrame(metadata_list).set_index('sample')
+
+metadata = parse_metadata(feature_table.columns)
+
+# Build genus->EPSPS class map
+genus_to_class = {}
+for genus in epsps['genus'].dropna().unique():
+    genus_epsps = epsps[epsps['genus'] == genus].iloc[0]
+    genus_to_class[genus] = genus_epsps['primary_class']
+
+# For each sample, calculate relative abundance of each EPSPS class
+results = []
+
+for sample in feature_table.columns:
+    sample_counts = feature_table[sample]
+    
+    class_i_abundance = 0
+    class_ii_abundance = 0
+    total_classified = 0
+    
+    for asv_id in sample_counts.index:
+        if asv_id not in taxonomy.index:
+            continue
+        
+        genus = taxonomy.loc[asv_id, 'genus']
+        if pd.isna(genus) or genus not in genus_to_class:
+            continue
+        
+        primary_class = genus_to_class[genus]
+        count = sample_counts[asv_id]
+        
+        if primary_class == 'I':
+            class_i_abundance += count
+        elif primary_class == 'II':
+            class_ii_abundance += count
+        
+        total_classified += count
+    
+    # Normalize to relative abundance
+    if total_classified > 0:
+        rel_class_i = class_i_abundance / total_classified
+        rel_class_ii = class_ii_abundance / total_classified
+    else:
+        rel_class_i = 0
+        rel_class_ii = 0
+    
+    treatment = metadata.loc[sample, 'treatment']
+    compartment = metadata.loc[sample, 'compartment']
+    
+    results.append({
+        'sample': sample,
+        'treatment': treatment,
+        'compartment': compartment,
+        'class_I_sensitive': rel_class_i,
+        'class_II_resistant': rel_class_ii,
+        'total_classified_reads': total_classified
+    })
+
+results_df = pd.DataFrame(results)
+
+print("=" * 70)
+print("EPSPS CLASS RELATIVE ABUNDANCE BY TREATMENT")
+print("=" * 70)
+print()
+print(results_df.groupby('treatment')[['class_I_sensitive', 'class_II_resistant']].agg(['mean', 'std', 'count']))
+print()
+
+print("BY COMPARTMENT AND TREATMENT")
+print()
+print(results_df.groupby(['treatment', 'compartment'])[['class_I_sensitive', 'class_II_resistant']].agg(['mean', 'std', 'count']))
+print()
+
+# Statistical tests
+print("=" * 70)
+print("STATISTICAL TESTS (Mann-Whitney U)")
+print("=" * 70)
+print()
+
+control_class_i = results_df[results_df['treatment'] == 'Control']['class_I_sensitive'].values
+roundup_class_i = results_df[results_df['treatment'] == 'Roundup']['class_I_sensitive'].values
+
+u_stat, p_value = mannwhitneyu(control_class_i, roundup_class_i)
+print(f"Class I (Sensitive) by Treatment:")
+print(f"  Control (n={len(control_class_i)}): mean={control_class_i.mean():.4f}, sd={control_class_i.std():.4f}")
+print(f"  Roundup (n={len(roundup_class_i)}): mean={roundup_class_i.mean():.4f}, sd={roundup_class_i.std():.4f}")
+print(f"  Mann-Whitney U: U={u_stat:.1f}, p={p_value:.4f}")
+print()
+
+control_class_ii = results_df[results_df['treatment'] == 'Control']['class_II_resistant'].values
+roundup_class_ii = results_df[results_df['treatment'] == 'Roundup']['class_II_resistant'].values
+
+u_stat, p_value = mannwhitneyu(control_class_ii, roundup_class_ii)
+print(f"Class II (Resistant) by Treatment:")
+print(f"  Control (n={len(control_class_ii)}): mean={control_class_ii.mean():.4f}, sd={control_class_ii.std():.4f}")
+print(f"  Roundup (n={len(roundup_class_ii)}): mean={roundup_class_ii.mean():.4f}, sd={roundup_class_ii.std():.4f}")
+print(f"  Mann-Whitney U: U={u_stat:.1f}, p={p_value:.4f}")
+print()
+
+# Plot
+fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+
+for idx, (col, title) in enumerate([('class_I_sensitive', 'Class I (Sensitive)'), ('class_II_resistant', 'Class II (Resistant)')]):
+    ax = axes[idx]
+    sns.boxplot(data=results_df, x='treatment', y=col, ax=ax, palette=['#DEEBF7', '#08519C'])
+    sns.stripplot(data=results_df, x='treatment', y=col, ax=ax, color='black', alpha=0.4, size=6)
+    ax.set_ylabel('Relative Abundance', fontsize=11)
+    ax.set_xlabel('Treatment', fontsize=11)
+    ax.set_title(f'{title} by Treatment', fontsize=12, fontweight='bold')
+    ax.grid(True, alpha=0.3, axis='y')
+
+plt.tight_layout()
+plt.savefig('results/epsps_by_treatment.pdf', dpi=300, bbox_inches='tight')
+print("Saved: results/epsps_by_treatment.pdf")
+
+results_df.to_csv('results/epsps_by_treatment.csv', index=False)
+print("Saved: results/epsps_by_treatment.csv")
+
+print("=" * 70)

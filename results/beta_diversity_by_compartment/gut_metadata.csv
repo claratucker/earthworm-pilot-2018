@@ -1,0 +1,17 @@
+sample,treatment,compartment,replicate
+C1.In,Control,Gut,1
+C2.In,Control,Gut,2
+C3.In,Control,Gut,3
+C4.In,Control,Gut,4
+C5.In,Control,Gut,5
+C6.In,Control,Gut,6
+C7.In,Control,Gut,7
+C8.In,Control,Gut,8
+R1.In,Roundup,Gut,1
+R2.In,Roundup,Gut,2
+R3.In,Roundup,Gut,3
+R4.In,Roundup,Gut,4
+R5.In,Roundup,Gut,5
+R6.In,Roundup,Gut,6
+R7.In,Roundup,Gut,7
+R8.In,Roundup,Gut,8
