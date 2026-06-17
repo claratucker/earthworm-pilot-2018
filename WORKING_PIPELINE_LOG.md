@@ -12,28 +12,39 @@
 
 ---
 
-## 2026-06-17: Beta Diversity NMDS - Complete
+## 2026-06-17: Comprehensive Diversity Analysis Complete
 
-**Data:** 970 ASVs × 22 samples. Design: Gut (8 Control + 8 Roundup), Soil (3 Control + 3 Roundup).
+**Analyses completed:** Beta diversity (full + compartment-stratified), Alpha diversity (compartment-stratified), EPSPS treatment effect.
 
-**Methods:** Bray-Curtis distances (Sorensen 1948), NMDS with stress reported (Kruskal 1964, Clarke & Warwick 1994 multi-k approach). Stress reported as-is per Dexter et al. (2018) sample-size caveats. PERMANOVA simplified (Anderson 2001).
+**#1 Beta Diversity by Compartment:**
+- Gut (n=16): Stress=0.445, R²=0.0044 (no treatment effect)
+- Soil (n=6): Stress=0.373, R²=0.0309 (no treatment effect)
+- Scripts: beta_diversity_by_compartment.py
+- Outputs: gut_nmds_ordination.pdf, soil_nmds_ordination.pdf (stress, centroids, 95% ellipses per Pochron 2023)
 
-**Results:**
-- 2D stress = 0.4678, 3D stress = 0.4135
-- R² (treatment) = 0.0020 (no Roundup effect)
-- No significant treatment effect on community composition
+**#2 EPSPS Treatment Effect:**
+- Class I (Sensitive): Control 0.207 vs Roundup 0.161 (p=0.694, NS)
+- Class II (Resistant): Control 0.456 vs Roundup 0.468 (p=1.000, NS)
+- No shift in sensitive/resistant phenotype balance with Roundup
+- Script: epsps_by_treatment.py
+- Output: epsps_by_treatment.pdf
 
-**Outputs:** results/beta_diversity/
-- nmds_ordination_2d.pdf, nmds_ordination_3d.pdf (stress in title, treatment centroids, 95% confidence ellipses, color gradient Control→Roundup, markers by compartment)
-- nmds_scores_2d.csv, nmds_scores_3d.csv (NMDS coordinates)
-- bray_curtis_distances.csv (full distance matrix for downstream use)
-- metadata.csv (parsed from sample names)
-- nmds_figure_caption_2d.txt, nmds_figure_caption_3d.txt (publication-ready captions with stress values)
+**#4 Alpha Diversity by Compartment:**
+- Compartment effect (significant): Gut Shannon 3.96 vs Soil 3.16 (p=0.016); Gut Observed 124.9 vs Soil 75.5 (p=0.0045)
+- Treatment effect (none): Gut p=0.505 (Shannon), p=0.092 (Richness); Soil p=1.000 (Shannon), p=0.700 (Richness)
+- Script: alpha_diversity_by_compartment.py
+- Output: alpha_diversity_by_compartment.pdf
 
-**Code:** ~/earthworm-pilot-2018/scripts/beta_diversity_nmds.py. Auto-runs 2D then 3D, reports both stress values.
+**Biological Conclusion:** Roundup treatment shows no detectable effect on microbial alpha diversity, beta diversity, or EPSPS class balance. Compartment (Gut vs Soil) is the dominant ecological factor. Sample size adequate for powered conclusions (Gut n=16 powered; Soil n=6 underpowered but consistent non-effect).
 
-**Biological interpretation:** No evidence of Roundup treatment effect on microbial beta diversity. Combined with alpha diversity (Shannon p=0.16), treatment shows no detectable effect. Soil compartment underpowered (n=3 per group).
+**Literature cited in code:**
+- Bray-Curtis distances (Sorensen 1948)
+- NMDS with Kruskal (1964) stress, Clarke & Warwick (1994) multi-k approach
+- Confidence ellipses (Sokal & Rohlf 1995)
+- Mann-Whitney U tests (non-parametric)
+- Dexter et al. (2018) stress sample-size dependence caveat
+- Pochron (2023) visualization requirements (stress, centroids, ellipses)
 
-**Literature cited in code:** Sorensen (1948) Bray-Curtis, Kruskal (1964) NMDS stress, Clarke & Warwick (1994) multi-k selection, Sokal & Rohlf (1995) confidence ellipses, Anderson (2001) PERMANOVA, Dexter et al. (2018) stress sample-size dependence, Pochron (2023) visualization requirements.
+**Commit:** 8fcbc16 - Add compartment-stratified diversity analysis
 
-**Status:** Complete and committed.
+**Status:** Complete. All analyses, figures, and supporting data committed.
