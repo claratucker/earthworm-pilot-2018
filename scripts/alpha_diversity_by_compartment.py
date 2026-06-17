@@ -47,14 +47,13 @@ for metric in ['Shannon', 'Observed']:
         print(f"    Roundup (n={len(roundup)}): {roundup.mean():.4f} ± {roundup.std():.4f}")
         print()
 
-# Plot 2x2: Metric (Shannon, Observed) x Comparison (by compartment, by treatment)
 fig, axes = plt.subplots(2, 2, figsize=(14, 10))
 
 metrics = [('Shannon', 'Shannon Diversity'), ('Observed', 'Observed Richness')]
 
 for row, (metric, metric_title) in enumerate(metrics):
     
-    # Left: By compartment (both treatments combined)
+    # Left: By compartment
     ax = axes[row, 0]
     sns.boxplot(data=alpha, x='compartment', y=metric, ax=ax, palette=['#C9A876', '#8B5A3C'])
     sns.stripplot(data=alpha, x='compartment', y=metric, ax=ax, color='black', alpha=0.4, size=6)
@@ -68,64 +67,33 @@ for row, (metric, metric_title) in enumerate(metrics):
            ha='center', va='top', fontsize=10, fontweight='bold',
            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
     
-    # Right: By treatment within compartment
+    # Right: By treatment within each compartment - separate panels
     ax = axes[row, 1]
     
-    color_schemes = {
-        'Gut': ['#90EE90', '#0B3D0B'],
-        'Soil': ['#F5DEB3', '#654321']
+    # Create palette mapping for all combinations
+    palette = {
+        ('Gut', 'Control'): '#90EE90',
+        ('Gut', 'Roundup'): '#0B3D0B',
+        ('Soil', 'Control'): '#F5DEB3',
+        ('Soil', 'Roundup'): '#654321'
     }
     
-    x_pos = 0
-    positions = []
-    labels = []
-    tick_positions = []
-    tick_labels = []
+    # Create a hue order for the plot
+    alpha['compartment_treatment'] = alpha['compartment'] + '\n' + alpha['treatment']
+    plot_order = ['Gut\nControl', 'Gut\nRoundup', 'Soil\nControl', 'Soil\nRoundup']
     
-    for comp_idx, compartment in enumerate(['Gut', 'Soil']):
-        comp_data = alpha[alpha['compartment'] == compartment]
-        
-        for treat_idx, treatment in enumerate(['Control', 'Roundup']):
-            subset = comp_data[comp_data['treatment'] == treatment]
-            ax.scatter([x_pos]*len(subset), subset[metric],
-                      color=color_schemes[compartment][treat_idx], s=100, alpha=0.6,
-                      edgecolors='black', linewidth=0.8)
-            
-            bp = ax.boxplot([subset[metric]], positions=[x_pos], widths=0.4,
-                           patch_artist=True, showfliers=False)
-            for patch in bp['boxes']:
-                patch.set_facecolor(color_schemes[compartment][treat_idx])
-                patch.set_alpha(0.4)
-                patch.set_linewidth(1.5)
-            
-            x_pos += 1
-        
-        # Add separator and label
-        if comp_idx == 0:
-            tick_positions.append(0.5)
-            tick_labels.append('Gut')
-        else:
-            tick_positions.append(2.5)
-            tick_labels.append('Soil')
-        
-        x_pos += 0.5
+    # Map colors
+    colors = [palette[(row.split('\n')[0], row.split('\n')[1])] for row in plot_order]
     
-    ax.set_xticks(tick_positions)
-    ax.set_xticklabels(tick_labels, fontsize=11)
+    sns.boxplot(data=alpha, x='compartment_treatment', y=metric, ax=ax,
+               palette=colors, order=plot_order)
+    sns.stripplot(data=alpha, x='compartment_treatment', y=metric, ax=ax,
+                 color='black', alpha=0.4, size=6, order=plot_order)
+    
+    ax.set_xlabel('Compartment and Treatment', fontsize=11)
     ax.set_ylabel(metric_title, fontsize=11)
     ax.set_title(f'{metric_title} by Treatment\nwithin Compartment', fontsize=12, fontweight='bold')
     ax.grid(True, alpha=0.3, axis='y')
-    ax.set_xlim(-0.5, x_pos - 0.5)
-    
-    # Add legend
-    from matplotlib.patches import Patch
-    legend_elements = [
-        Patch(facecolor='#90EE90', edgecolor='black', label='Gut Control'),
-        Patch(facecolor='#0B3D0B', edgecolor='black', label='Gut Roundup'),
-        Patch(facecolor='#F5DEB3', edgecolor='black', label='Soil Control'),
-        Patch(facecolor='#654321', edgecolor='black', label='Soil Roundup')
-    ]
-    ax.legend(handles=legend_elements, loc='upper right', fontsize=9)
     
     # Add p-values for treatment comparisons
     p_gut = p_values[f'{metric}_Gut']
