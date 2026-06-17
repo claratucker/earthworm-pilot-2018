@@ -1,0 +1,9 @@
+
+EPSPSClass summary (164 sequences):
+  Class I           :     53  (32.3%)
+  Class II          :     76  (46.3%)
+  Class III         :      5  (3.0%)
+  Class IV          :     18  (11.0%)
+  Class Unclassified:     12  (7.3%)
+  Mixed (>1 class) :     24  (14.6%)
+  Flagged unreliable: 12 (7.3%)

@@ -1,0 +1,107 @@
+Benchmark: 4 class I organisms, 3 class II organisms
+
+benchmark_classII_Staphylococcus_aureus|YFF31137: 14/148 class I markers matched
+benchmark_classII_Ruminococcus_gnavus|WP_268803945: 22/148 class I markers matched
+benchmark_classII_Dorea_formicigenerans|WP_390371098: 17/148 class I markers matched
+benchmark_classI_Bacteroides_fragilis|WP_220391824: 27/148 class I markers matched
+benchmark_classI_Bacteroides_thetaiotaomicron|WP_434276370: 28/148 class I markers matched
+benchmark_classI_Clostridium_perfringens|WP_483510405: 26/148 class I markers matched
+benchmark_classI_Prevotella_copri|EFB34131: 24/148 class I markers matched
+
+--- Per-position discrimination ---
+For each position, compare match rate in class I vs class II benchmark organisms.
+
+Top 20 most discriminating positions (class I match rate minus class II match rate):
+  pos  classI_rate  classII_rate  discrimination
+  142         1.00          0.00            1.00
+  146         1.00          0.00            1.00
+  270         1.00          0.00            1.00
+  352         1.00          0.00            1.00
+   18         0.75          0.00            0.75
+   44         0.75          0.00            0.75
+   46         0.75          0.00            0.75
+   99         0.75          0.00            0.75
+  120         0.75          0.00            0.75
+  230         0.75          0.00            0.75
+  309         0.75          0.00            0.75
+  316         0.75          0.00            0.75
+  388         0.75          0.00            0.75
+  411         0.75          0.00            0.75
+   58         0.50          0.00            0.50
+  152         0.50          0.00            0.50
+  169         0.50          0.00            0.50
+  278         0.50          0.00            0.50
+  322         0.50          0.00            0.50
+  351         0.50          0.00            0.50
+
+Bottom 10 (least discriminating, or inverted):
+  235         0.50          1.00           -0.50
+    9         0.00          0.67           -0.67
+   84         0.00          0.67           -0.67
+  135         0.00          0.67           -0.67
+  184         0.00          0.67           -0.67
+  186         0.00          0.67           -0.67
+  237         0.00          0.67           -0.67
+  398         0.00          0.67           -0.67
+  399         0.00          0.67           -0.67
+  329         0.00          1.00           -1.00
+
+--- Testing subset of top 10 discriminating positions ---
+  class I  benchmark_classI_Bacteroides_fragilis|WP_220391824: 9/10
+  class I  benchmark_classI_Bacteroides_thetaiotaomicron|WP_434276370: 10/10
+  class I  benchmark_classI_Clostridium_perfringens|WP_483510405: 5/10
+  class I  benchmark_classI_Prevotella_copri|EFB34131: 10/10
+  class II benchmark_classII_Staphylococcus_aureus|YFF31137: 0/10
+  class II benchmark_classII_Ruminococcus_gnavus|WP_268803945: 0/10
+  class II benchmark_classII_Dorea_formicigenerans|WP_390371098: 0/10
+  Gap (min class I count - max class II count): 5
+  SAFE TO THRESHOLD
+
+--- Testing subset of top 20 discriminating positions ---
+  class I  benchmark_classI_Bacteroides_fragilis|WP_220391824: 17/20
+  class I  benchmark_classI_Bacteroides_thetaiotaomicron|WP_434276370: 19/20
+  class I  benchmark_classI_Clostridium_perfringens|WP_483510405: 7/20
+  class I  benchmark_classI_Prevotella_copri|EFB34131: 15/20
+  class II benchmark_classII_Staphylococcus_aureus|YFF31137: 0/20
+  class II benchmark_classII_Ruminococcus_gnavus|WP_268803945: 0/20
+  class II benchmark_classII_Dorea_formicigenerans|WP_390371098: 0/20
+  Gap (min class I count - max class II count): 7
+  SAFE TO THRESHOLD
+
+--- Testing subset of top 30 discriminating positions ---
+  class I  benchmark_classI_Bacteroides_fragilis|WP_220391824: 21/30
+  class I  benchmark_classI_Bacteroides_thetaiotaomicron|WP_434276370: 22/30
+  class I  benchmark_classI_Clostridium_perfringens|WP_483510405: 12/30
+  class I  benchmark_classI_Prevotella_copri|EFB34131: 17/30
+  class II benchmark_classII_Staphylococcus_aureus|YFF31137: 0/30
+  class II benchmark_classII_Ruminococcus_gnavus|WP_268803945: 1/30
+  class II benchmark_classII_Dorea_formicigenerans|WP_390371098: 1/30
+  Gap (min class I count - max class II count): 11
+  SAFE TO THRESHOLD
+
+--- Testing subset of top 50 discriminating positions ---
+  class I  benchmark_classI_Bacteroides_fragilis|WP_220391824: 23/50
+  class I  benchmark_classI_Bacteroides_thetaiotaomicron|WP_434276370: 26/50
+  class I  benchmark_classI_Clostridium_perfringens|WP_483510405: 22/50
+  class I  benchmark_classI_Prevotella_copri|EFB34131: 19/50
+  class II benchmark_classII_Staphylococcus_aureus|YFF31137: 1/50
+  class II benchmark_classII_Ruminococcus_gnavus|WP_268803945: 1/50
+  class II benchmark_classII_Dorea_formicigenerans|WP_390371098: 1/50
+  Gap (min class I count - max class II count): 18
+  SAFE TO THRESHOLD
+
+--- Testing subset of top 148 discriminating positions ---
+  class I  benchmark_classI_Bacteroides_fragilis|WP_220391824: 27/148
+  class I  benchmark_classI_Bacteroides_thetaiotaomicron|WP_434276370: 28/148
+  class I  benchmark_classI_Clostridium_perfringens|WP_483510405: 26/148
+  class I  benchmark_classI_Prevotella_copri|EFB34131: 24/148
+  class II benchmark_classII_Staphylococcus_aureus|YFF31137: 14/148
+  class II benchmark_classII_Ruminococcus_gnavus|WP_268803945: 22/148
+  class II benchmark_classII_Dorea_formicigenerans|WP_390371098: 17/148
+  Gap (min class I count - max class II count): 2
+  SAFE TO THRESHOLD
+
+Review the gaps above. A subset is only usable for thresholding
+if the gap is positive and comfortably wide, not a 1-2 marker margin.
+If no subset size gives a safe gap, the count-threshold approach
+does not work for Class I and a different method is needed.
