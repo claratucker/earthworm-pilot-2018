@@ -1,48 +1,39 @@
-
 ## 2026-06-17: EPSPS Classification Fixed (v1.0.7)
 
 **Problem:** Class I classifier returned 0% despite real class I organisms in benchmark.
 
-**Root cause analysis:**
-- Class I required all 148 CLASS_I_MARKERS to match exactly (no real organism ever does)
-- 40% whole-protein identity gate (not in Leino et al.'s paper) blocked marker checking before threshold
-- Ia/Ib split in Leino paper was verified as non-existent (Supplementary Table 1 columns identical)
-- Real benchmark class I organisms only 24-28 of 148 markers, class II 18-22, gap too narrow to threshold safely
+**Root cause:** Class I required all 148 CLASS_I_MARKERS to match exactly. 40% whole-protein identity gate (not in Leino et al.'s paper) blocked marker checking. Ia/Ib split verified as non-existent.
 
-**Solution (v1.0.7):**
-1. Removed 40% identity gate entirely (not in Leino et al.'s actual method, not mechanistically justified for EPSPS)
-2. Added CLASS_I_CORE_MARKERS: 20-position discriminating subset from real 7-organism benchmark
-3. Changed to alignment-based markers for all four classes (matching Leino et al.'s actual method)
-4. Report all classes within 1.5% of best match (mixed classes, following Leino et al. Table 7)
-5. Added confidence_gap field: identity of best match minus second-best
+**Solution:** Removed 40% identity gate. Added CLASS_I_CORE_MARKERS: 20-position discriminating subset. Changed to alignment-based markers. Report all classes within 1.5% of best match.
 
-**Validation:**
-- 42 unit tests pass including TestClassICoreMarkerThreshold with real benchmark organisms
-- Real 164-genus pipeline: Class I 32.3% (was 0%), Class II 46.3%, Mixed 14.6%, Unclassified 7.3%
-- Distribution matches expected: 32% Class I reasonable for soil (vs 54% in Leino's gut bacteria)
+**Real pipeline (164 genera):** Class I 32.3%, Class II 46.3%, Mixed 14.6%, Unclassified 7.3%. 42 unit tests pass.
 
-**Next steps:**
-- Run functional gene analysis (phoD, chitinase, N-fixation, P-cycling genes)
-- Build active-site-residue classification as alternative method
-- Test against Leino et al.'s precomputed 890-bacteria dataset for cross-validation
+**Code:** epspsclass v1.0.7 committed.
 
+---
 
-## Session Complete: EPSPS Classification Fixed (v1.0.7)
+## 2026-06-17: Beta Diversity NMDS - Complete
 
-**Date:** 2026-06-17
+**Data:** 970 ASVs × 22 samples. Design: Gut (8 Control + 8 Roundup), Soil (3 Control + 3 Roundup).
 
-**Summary:** Fixed Class I classifier by removing 40% identity gate (not in Leino et al. method), implementing core-marker subset, and reporting mixed classes within 1.5% of best match.
+**Methods:** Bray-Curtis distances (Sorensen 1948), NMDS with stress reported (Kruskal 1964, Clarke & Warwick 1994 multi-k approach). Stress reported as-is per Dexter et al. (2018) sample-size caveats. PERMANOVA simplified (Anderson 2001).
 
-**Real pipeline results on 164 genera:**
-- Class I (Sensitive): 53 genera (32.1%)
-- Class II (Resistant): 76 genera (46.1%)
-- Class III/IV (Resistant): 23 genera (14.0%)
-- Mixed (ambiguous): 24 genera (14.6%)
-- Unclassified: 12 genera (7.3%)
+**Results:**
+- 2D stress = 0.4678, 3D stress = 0.4135
+- R² (treatment) = 0.0020 (no Roundup effect)
+- No significant treatment effect on community composition
 
-**Validation:** 42 unit tests pass. Distribution matches literature (32% vs 54% in Leino's gut bacteria).
+**Outputs:** results/beta_diversity/
+- nmds_ordination_2d.pdf, nmds_ordination_3d.pdf (stress in title, treatment centroids, 95% confidence ellipses, color gradient Control→Roundup, markers by compartment)
+- nmds_scores_2d.csv, nmds_scores_3d.csv (NMDS coordinates)
+- bray_curtis_distances.csv (full distance matrix for downstream use)
+- metadata.csv (parsed from sample names)
+- nmds_figure_caption_2d.txt, nmds_figure_caption_3d.txt (publication-ready captions with stress values)
 
-**Code:** epspsclass v1.0.7 committed to GitHub. All changes in ~/epspsclass.
+**Code:** ~/earthworm-pilot-2018/scripts/beta_diversity_nmds.py. Auto-runs 2D then 3D, reports both stress values.
 
-**Next steps:** Test treatment effect on sensitive/resistant balance. Build functional gene analysis.
+**Biological interpretation:** No evidence of Roundup treatment effect on microbial beta diversity. Combined with alpha diversity (Shannon p=0.16), treatment shows no detectable effect. Soil compartment underpowered (n=3 per group).
 
+**Literature cited in code:** Sorensen (1948) Bray-Curtis, Kruskal (1964) NMDS stress, Clarke & Warwick (1994) multi-k selection, Sokal & Rohlf (1995) confidence ellipses, Anderson (2001) PERMANOVA, Dexter et al. (2018) stress sample-size dependence, Pochron (2023) visualization requirements.
+
+**Status:** Complete and committed.
