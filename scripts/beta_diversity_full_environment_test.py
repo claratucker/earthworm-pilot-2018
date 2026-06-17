@@ -175,7 +175,7 @@ def plot_combined_nmds(nmds_df, metadata, stress_value, permanova_results, permd
         if len(subset) == 0:
             continue
         ax.scatter(subset['NMDS1'], subset['NMDS2'], c=style['color'], marker=style['marker'],
-                  s=150, alpha=0.7, edgecolors='black', linewidth=0.8, label=style['label'])
+                  s=170, alpha=0.85, edgecolors='black', linewidth=1.5, label=style['label'])
 
         centroid_x, centroid_y = subset['NMDS1'].mean(), subset['NMDS2'].mean()
         ax.scatter(centroid_x, centroid_y, c=style['color'], marker='+', s=400,
