@@ -56,3 +56,24 @@ Pilot study results document created (RESULTS.md). Findings: no treatment effect
 Methods cited: Bray-Curtis (Sorensen 1948), NMDS stress (Kruskal 1964), PERMANOVA (Anderson 2001), confidence ellipses (Sokal & Rohlf 1995), stress interpretation (Dexter et al. 2018).
 
 All analyses, figures, and supporting code committed.
+
+## 2026-06-17: PERMANOVA Bug Found and Fixed
+
+Problem: combined-sample PERMANOVA (compartment: Gut vs Soil) reported R²=0.0039, p=0.422, no significant separation. This contradicted alpha diversity, taxa composition, and visual inspection, all of which showed clear Gut vs Soil differences.
+
+Root cause: original `compute_r2` function approximated PERMANOVA using raw group-mean pairwise distances rather than the correct sum-of-squares decomposition on squared distances (McArdle & Anderson 2001). No permutation test was implemented, so no real p-value was ever produced, the reported p-values in early scripts were placeholders.
+
+Diagnosis: sanity check directly comparing within-group vs between-group raw Bray-Curtis distances showed clear separation (Mann-Whitney U=3501, p<0.000001), confirming the distance matrix itself was fine and the bug was in the PERMANOVA test implementation.
+
+Fix: rewrote PERMANOVA using correct sum-of-squares formulation operating on squared distances, with 999-permutation p-value. Applied to both the combined (Gut vs Soil) and compartment-stratified (treatment within Gut, treatment within Soil) scripts.
+
+Corrected results:
+- Compartment effect (Gut vs Soil, n=22): R²=0.0791, pseudo-F=1.717, p=0.003 (significant, consistent with other analyses)
+- Treatment effect within Gut (n=16): R²=0.0724, pseudo-F=1.093, p=0.269 (NS, conclusion unchanged from buggy version)
+- Treatment effect within Soil (n=6): R²=0.1944, pseudo-F=0.965, p=0.499 (NS, conclusion unchanged from buggy version)
+
+Biological conclusions about treatment (no effect) were unchanged by the fix. R² magnitudes increased substantially. The compartment-effect conclusion flipped from "no significant separation" (wrong) to "significant separation" (correct, consistent with rest of dataset).
+
+Also added PERMDISP (Anderson 2006) test for within-group dispersion by compartment: F=0.0002, p=0.988, no significant difference in dispersion between Gut and Soil. Notable since soil taxa composition showed visible heterogeneity (two of six soil samples dominated by Aliivibrio, others not); PERMDISP did not detect this at n=3 per soil treatment group, likely underpowered for this pattern at this sample size.
+
+All superseded PDFs, CSVs, and figure captions regenerated with corrected values. RESULTS.md updated with a methods-correction note for transparency.

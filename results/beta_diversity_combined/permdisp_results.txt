@@ -1,0 +1,9 @@
+PERMDISP: Within-group dispersion by compartment
+============================================================
+
+F statistic: 0.0002
+p-value: 0.9882
+
+Mean distance to group centroid:
+  Gut: 0.5783 +/- 0.0392 (n=16)
+  Soil: 0.5787 +/- 0.0716 (n=6)
