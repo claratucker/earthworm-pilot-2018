@@ -14,7 +14,6 @@ epsps = pd.read_csv('epsps/epsps_classified.tsv', sep='\t', index_col=0)
 
 # Extract genus from taxonomy
 def extract_genus_from_taxon(taxon_string):
-    """Extract genus from QIIME2 taxonomy string."""
     if pd.isna(taxon_string):
         return None
     parts = taxon_string.split(';')
@@ -25,22 +24,11 @@ def extract_genus_from_taxon(taxon_string):
     return None
 
 taxonomy['genus'] = taxonomy['Taxon'].apply(extract_genus_from_taxon)
-
-# Extract genus from EPSPS (format: Genus|ProteinID)
 epsps['genus'] = epsps.index.str.split('|').str[0]
 
 print(f"  Feature table: {feature_table.shape[0]} ASVs")
 print(f"  Taxonomy with genus: {taxonomy['genus'].notna().sum()} entries")
 print(f"  EPSPS with genus: {epsps['genus'].notna().sum()} entries")
-print()
-
-# Check overlap
-tax_genera = set(taxonomy['genus'].dropna().unique())
-epsps_genera = set(epsps['genus'].dropna().unique())
-overlap = tax_genera & epsps_genera
-print(f"Genera in taxonomy: {len(tax_genera)}")
-print(f"Genera in EPSPS: {len(epsps_genera)}")
-print(f"Overlapping genera: {len(overlap)}")
 print()
 
 # Parse sample metadata
@@ -88,7 +76,6 @@ for sample in feature_table.columns:
         
         total_classified += count
     
-    # Normalize to relative abundance
     if total_classified > 0:
         rel_class_i = class_i_abundance / total_classified
         rel_class_ii = class_ii_abundance / total_classified
@@ -117,11 +104,6 @@ print()
 print(results_df.groupby('treatment')[['class_I_sensitive', 'class_II_resistant']].agg(['mean', 'std', 'count']))
 print()
 
-print("BY COMPARTMENT AND TREATMENT")
-print()
-print(results_df.groupby(['treatment', 'compartment'])[['class_I_sensitive', 'class_II_resistant']].agg(['mean', 'std', 'count']))
-print()
-
 # Statistical tests
 print("=" * 70)
 print("STATISTICAL TESTS (Mann-Whitney U)")
@@ -131,34 +113,43 @@ print()
 control_class_i = results_df[results_df['treatment'] == 'Control']['class_I_sensitive'].values
 roundup_class_i = results_df[results_df['treatment'] == 'Roundup']['class_I_sensitive'].values
 
-u_stat, p_value = mannwhitneyu(control_class_i, roundup_class_i)
+u_stat, p_value_i = mannwhitneyu(control_class_i, roundup_class_i)
 print(f"Class I (Sensitive) by Treatment:")
 print(f"  Control (n={len(control_class_i)}): mean={control_class_i.mean():.4f}, sd={control_class_i.std():.4f}")
 print(f"  Roundup (n={len(roundup_class_i)}): mean={roundup_class_i.mean():.4f}, sd={roundup_class_i.std():.4f}")
-print(f"  Mann-Whitney U: U={u_stat:.1f}, p={p_value:.4f}")
+print(f"  Mann-Whitney U: U={u_stat:.1f}, p={p_value_i:.4f}")
 print()
 
 control_class_ii = results_df[results_df['treatment'] == 'Control']['class_II_resistant'].values
 roundup_class_ii = results_df[results_df['treatment'] == 'Roundup']['class_II_resistant'].values
 
-u_stat, p_value = mannwhitneyu(control_class_ii, roundup_class_ii)
+u_stat, p_value_ii = mannwhitneyu(control_class_ii, roundup_class_ii)
 print(f"Class II (Resistant) by Treatment:")
 print(f"  Control (n={len(control_class_ii)}): mean={control_class_ii.mean():.4f}, sd={control_class_ii.std():.4f}")
 print(f"  Roundup (n={len(roundup_class_ii)}): mean={roundup_class_ii.mean():.4f}, sd={roundup_class_ii.std():.4f}")
-print(f"  Mann-Whitney U: U={u_stat:.1f}, p={p_value:.4f}")
+print(f"  Mann-Whitney U: U={u_stat:.1f}, p={p_value_ii:.4f}")
 print()
 
-# Plot
+# Plot with stats
 fig, axes = plt.subplots(1, 2, figsize=(14, 6))
 
-for idx, (col, title) in enumerate([('class_I_sensitive', 'Class I (Sensitive)'), ('class_II_resistant', 'Class II (Resistant)')]):
+for idx, (col, title, p_val) in enumerate([
+    ('class_I_sensitive', 'Class I (Sensitive)', p_value_i),
+    ('class_II_resistant', 'Class II (Resistant)', p_value_ii)
+]):
     ax = axes[idx]
-    sns.boxplot(data=results_df, x='treatment', y=col, ax=ax, palette=['#DEEBF7', '#08519C'])
+    sns.boxplot(data=results_df, x='treatment', y=col, ax=ax, palette=['#D2B48C', '#654321'])
     sns.stripplot(data=results_df, x='treatment', y=col, ax=ax, color='black', alpha=0.4, size=6)
     ax.set_ylabel('Relative Abundance', fontsize=11)
     ax.set_xlabel('Treatment', fontsize=11)
     ax.set_title(f'{title} by Treatment', fontsize=12, fontweight='bold')
     ax.grid(True, alpha=0.3, axis='y')
+    
+    # Add p-value
+    sig_text = "NS" if p_val >= 0.05 else f"p={p_val:.3f}"
+    ax.text(0.5, 0.95, sig_text, transform=ax.transAxes,
+           ha='center', va='top', fontsize=11, fontweight='bold',
+           bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
 
 plt.tight_layout()
 plt.savefig('results/epsps_by_treatment.pdf', dpi=300, bbox_inches='tight')

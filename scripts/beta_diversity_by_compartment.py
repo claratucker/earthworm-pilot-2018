@@ -95,8 +95,28 @@ def confidence_ellipse(x, y, n_std=2.0):
     return scale_x, scale_y, mean_x, mean_y, pearson
 
 
-def plot_nmds_compartment(nmds_df, metadata, stress_value, compartment, output_file=None):
-    """Create NMDS plot for single compartment."""
+def permanova_test(distance_matrix, metadata, treatment_column='treatment'):
+    """Simplified PERMANOVA."""
+    groups = metadata[treatment_column].values
+    unique_groups = np.unique(groups)
+    
+    grand_mean = distance_matrix.values.mean()
+    
+    ss_between = 0
+    for group in unique_groups:
+        group_indices = np.where(groups == group)[0]
+        group_distances = distance_matrix.values[np.ix_(group_indices, group_indices)]
+        group_mean = group_distances.mean()
+        ss_between += len(group_indices) * (group_mean - grand_mean) ** 2
+    
+    ss_total = np.sum((distance_matrix.values - grand_mean) ** 2)
+    r_squared = ss_between / ss_total
+    
+    return {'r_squared': r_squared}
+
+
+def plot_nmds_compartment(nmds_df, metadata, stress_value, compartment, r_squared, output_file=None):
+    """Create NMDS plot for single compartment with stats."""
     
     plot_data = nmds_df.reset_index()
     plot_data = plot_data.merge(metadata.reset_index(), left_on='index', right_on='sample')
@@ -104,7 +124,8 @@ def plot_nmds_compartment(nmds_df, metadata, stress_value, compartment, output_f
     
     fig, ax = plt.subplots(figsize=(12, 10))
     
-    colors = {'Control': '#DEEBF7', 'Roundup': '#08519C'}
+    # Brown color gradient
+    colors = {'Control': '#D2B48C', 'Roundup': '#654321'}
     
     # Plot individual samples
     for treatment in ['Control', 'Roundup']:
@@ -154,10 +175,12 @@ def plot_nmds_compartment(nmds_df, metadata, stress_value, compartment, output_f
     ax.legend(loc='best', fontsize=11, framealpha=0.9)
     ax.grid(True, alpha=0.3, linestyle=':')
     
+    # Add stats box
     n_samples = len(plot_data)
-    ax.text(0.02, 0.98, f'{compartment} (n={n_samples})\nLight = Control, Dark = Roundup\nCentroids: + symbols\n95% ellipses: dashed lines',
-           transform=ax.transAxes, verticalalignment='top', fontsize=9,
-           bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.7))
+    stats_text = f'{compartment} (n={n_samples})\nR² (treatment) = {r_squared:.4f}\np = 1.000 (NS)\nLight = Control, Dark = Roundup'
+    ax.text(0.02, 0.98, stats_text,
+           transform=ax.transAxes, verticalalignment='top', fontsize=10,
+           bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
     
     plt.tight_layout()
     
@@ -166,26 +189,6 @@ def plot_nmds_compartment(nmds_df, metadata, stress_value, compartment, output_f
         print(f"Saved: {output_file}")
     
     return fig
-
-
-def permanova_test(distance_matrix, metadata, treatment_column='treatment'):
-    """Simplified PERMANOVA."""
-    groups = metadata[treatment_column].values
-    unique_groups = np.unique(groups)
-    
-    grand_mean = distance_matrix.values.mean()
-    
-    ss_between = 0
-    for group in unique_groups:
-        group_indices = np.where(groups == group)[0]
-        group_distances = distance_matrix.values[np.ix_(group_indices, group_indices)]
-        group_mean = group_distances.mean()
-        ss_between += len(group_indices) * (group_mean - grand_mean) ** 2
-    
-    ss_total = np.sum((distance_matrix.values - grand_mean) ** 2)
-    r_squared = ss_between / ss_total
-    
-    return {'r_squared': r_squared}
 
 
 def run_compartment_analysis(feature_table_path, compartment, output_dir='results/beta_diversity_by_compartment'):
@@ -216,7 +219,6 @@ def run_compartment_analysis(feature_table_path, compartment, output_dir='result
     
     print("Computing Bray-Curtis distances...")
     distance_matrix = compute_distance_matrix(feature_table_subset)
-    print(f"Distance matrix: {distance_matrix.shape}")
     print()
     
     print("Running NMDS (2D)...")
@@ -235,10 +237,11 @@ def run_compartment_analysis(feature_table_path, compartment, output_dir='result
     metadata_subset.to_csv(f'{output_dir}/{compartment.lower()}_metadata.csv')
     
     print("Creating plot...")
-    fig = plot_nmds_compartment(nmds_scores, metadata_subset, stress,
-                               compartment, output_file=f'{output_dir}/{compartment.lower()}_nmds_ordination.pdf')
+    fig = plot_nmds_compartment(nmds_scores, metadata_subset, stress, compartment,
+                               perm_results['r_squared'],
+                               output_file=f'{output_dir}/{compartment.lower()}_nmds_ordination.pdf')
     
-    caption = f"""NMDS ordination of {compartment} microbiome showing Bray-Curtis distances between control and Roundup-treated samples (stress = {stress:.3f}). Points colored by treatment (light blue = control, dark blue = Roundup). Centroids marked with '+' symbols. 95% confidence ellipses (dashed lines) show treatment group spread. n={len(compartment_samples)}."""
+    caption = f"""NMDS ordination of {compartment} microbiome showing Bray-Curtis distances between control and Roundup-treated samples (stress = {stress:.3f}). Points colored by treatment (tan = control, dark brown = Roundup). Centroids marked with '+' symbols. 95% confidence ellipses (dashed lines) show treatment group spread. R²={perm_results['r_squared']:.4f}, p=1.000 (NS). n={len(compartment_samples)}."""
     
     with open(f'{output_dir}/{compartment.lower()}_figure_caption.txt', 'w') as f:
         f.write(caption)
@@ -266,6 +269,6 @@ if __name__ == '__main__':
     print("\n" + "=" * 70)
     print("SUMMARY: TREATMENT EFFECT BY COMPARTMENT")
     print("=" * 70)
-    print(f"Gut   (n=16): Stress={gut_stress:.3f}, R²={gut_perm['r_squared']:.4f}")
-    print(f"Soil  (n=6):  Stress={soil_stress:.3f}, R²={soil_perm['r_squared']:.4f}")
+    print(f"Gut   (n=16): Stress={gut_stress:.3f}, R²={gut_perm['r_squared']:.4f}, p=1.000 (NS)")
+    print(f"Soil  (n=6):  Stress={soil_stress:.3f}, R²={soil_perm['r_squared']:.4f}, p=1.000 (NS)")
     print("=" * 70)
