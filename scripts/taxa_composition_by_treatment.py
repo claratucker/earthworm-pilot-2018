@@ -125,12 +125,12 @@ for ax_idx, environment in enumerate(['Gut', 'Soil']):
     ax.grid(True, alpha=0.3, axis='y')
 
 handles, labels = axes[0].get_legend_handles_labels()
-fig.legend(handles, labels, loc='center left', bbox_to_anchor=(0.88, 0.5),
+fig.legend(handles, labels, loc='center left', bbox_to_anchor=(0.93, 0.5),
           fontsize=9, framealpha=0.9, title='Genus')
 
 fig.suptitle('Taxonomic Composition by Treatment', fontsize=15, fontweight='bold', y=1.02)
 
-plt.tight_layout(rect=[0, 0, 0.92, 1])
+plt.tight_layout(rect=[0, 0, 0.89, 1])
 plt.savefig('results/taxa_composition/taxa_composition_by_treatment.pdf', dpi=300, bbox_inches='tight')
 plt.savefig('results/figures/figure_5_taxa_composition.pdf', dpi=300, bbox_inches='tight')
 print("Saved: results/taxa_composition/taxa_composition_by_treatment.pdf")
