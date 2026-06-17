@@ -101,8 +101,8 @@ for row, (metric, metric_title) in enumerate(metrics):
     p_soil = p_values[f'{metric}_Soil']
     
     stats_text = f"Gut: p={p_gut:.4f}\nSoil: p={p_soil:.4f}"
-    ax.text(0.98, 0.05, stats_text, transform=ax.transAxes,
-           ha='right', va='bottom', fontsize=9,
+    ax.text(0.5, 0.98, stats_text, transform=ax.transAxes,
+           ha='center', va='top', fontsize=9,
            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
 
 plt.tight_layout()
