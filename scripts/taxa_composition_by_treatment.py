@@ -3,8 +3,10 @@
 
 Genus colors are consistent across Gut and Soil panels so compositional
 differences between compartments are directly comparable. Treatment
-(Control vs Roundup) is indicated by x-axis tick label color, not bar color,
-since bar color encodes genus identity.
+(Control vs Roundup) is shown as a highlighted background box behind each
+x-axis tick label rather than via bar color, since bar color encodes genus
+identity. Genera not in the top N are pooled into "Other (<1% each)" using
+an explicit relative abundance gate, defined below.
 """
 
 import pandas as pd
@@ -46,33 +48,44 @@ feature_by_genus = feature_by_genus.fillna(0)
 
 feature_by_genus_rel = feature_by_genus.div(feature_by_genus.sum(axis=0), axis=1)
 
-top_n = 15
-top_genera = feature_by_genus_rel.sum(axis=1).nlargest(top_n).index.tolist()
+# "Other" gate: any genus whose mean relative abundance across all samples
+# falls below this threshold is pooled into "Other". This is an abundance
+# filter for display purposes only, it does not affect any statistical
+# test reported elsewhere in the pipeline.
+OTHER_THRESHOLD = 0.01  # 1% mean relative abundance across all samples
 
-print(f"Top {top_n} genera by total abundance:")
+mean_abundance = feature_by_genus_rel.mean(axis=1)
+top_genera = mean_abundance[mean_abundance >= OTHER_THRESHOLD].sort_values(ascending=False).index.tolist()
+
+print(f"Genera at or above {OTHER_THRESHOLD*100:.0f}% mean relative abundance: {len(top_genera)}")
 for i, genus in enumerate(top_genera, 1):
-    print(f"  {i}. {genus}")
+    print(f"  {i}. {genus} ({mean_abundance[genus]*100:.2f}%)")
 print()
 
+other_label = f'Other (<{OTHER_THRESHOLD*100:.0f}% mean abundance)'
+
 composition = feature_by_genus_rel.loc[top_genera].copy().T
-composition['Other'] = 1 - composition.sum(axis=1)
+composition[other_label] = 1 - composition.sum(axis=1)
 composition = composition.join(metadata)
 
-# Single fixed color map for genera, shared across both panels.
-# Uses a qualitative palette since genus identity, not magnitude, is what
-# needs to be visually distinguished and matched between panels.
-genus_order = top_genera + ['Other']
-qualitative_colors = sns.color_palette("tab20", len(genus_order))
-genus_color_map = dict(zip(genus_order, qualitative_colors))
-genus_color_map['Other'] = '#BBBBBB'
+genus_order = top_genera + [other_label]
+qualitative_colors = sns.color_palette("tab20", len(top_genera))
+genus_color_map = dict(zip(top_genera, qualitative_colors))
+genus_color_map[other_label] = '#BBBBBB'
 
-# Treatment label colors (matches established scheme: green=Gut, brown=Soil,
-# light=Control, dark=Roundup). Applied to tick labels only, not bars.
-treatment_label_colors = {
-    ('Gut', 'Control'): '#3CB043',
+# Treatment highlight box colors, shown behind x-axis tick labels.
+treatment_box_colors = {
+    ('Gut', 'Control'): '#90EE90',
     ('Gut', 'Roundup'): '#0B3D0B',
-    ('Soil', 'Control'): '#C9A876',
+    ('Soil', 'Control'): '#F5DEB3',
     ('Soil', 'Roundup'): '#654321'
+}
+# Text color chosen for contrast against the highlight box (dark boxes need light text)
+treatment_text_colors = {
+    ('Gut', 'Control'): 'black',
+    ('Gut', 'Roundup'): 'white',
+    ('Soil', 'Control'): 'black',
+    ('Soil', 'Roundup'): 'white'
 }
 
 fig, axes = plt.subplots(1, 2, figsize=(17, 7))
@@ -103,8 +116,12 @@ for ax_idx, compartment in enumerate(['Gut', 'Soil']):
 
     for tick_idx, sample in enumerate(comp_data.index):
         treatment = comp_data.loc[sample, 'treatment']
-        ax.get_xticklabels()[tick_idx].set_color(treatment_label_colors[(compartment, treatment)])
-        ax.get_xticklabels()[tick_idx].set_fontweight('bold')
+        box_color = treatment_box_colors[(compartment, treatment)]
+        text_color = treatment_text_colors[(compartment, treatment)]
+        label = ax.get_xticklabels()[tick_idx]
+        label.set_color(text_color)
+        label.set_fontweight('bold')
+        label.set_bbox(dict(facecolor=box_color, edgecolor='none', boxstyle='round,pad=0.3'))
 
     n_control = len(comp_data[comp_data['treatment'] == 'Control'])
     if n_control > 0:
@@ -113,17 +130,11 @@ for ax_idx, compartment in enumerate(['Gut', 'Soil']):
     ax.set_ylim(0, 1)
     ax.grid(True, alpha=0.3, axis='y')
 
-# One shared legend for genus identity (same colors both panels)
 handles, labels = axes[0].get_legend_handles_labels()
 fig.legend(handles, labels, loc='center left', bbox_to_anchor=(1.0, 0.5),
           fontsize=9, framealpha=0.9, title='Genus')
 
-# Caption-style note explaining label colors, placed below the plots
-fig.text(0.5, -0.02,
-        'X-axis sample labels colored by treatment: green = Gut Control/Roundup, brown = Soil Control/Roundup (light = Control, dark = Roundup).',
-        ha='center', fontsize=9, style='italic')
-
-plt.tight_layout(rect=[0, 0.02, 0.88, 1])
+plt.tight_layout(rect=[0, 0, 0.88, 1])
 plt.savefig('results/taxa_composition/taxa_composition_by_treatment.pdf', dpi=300, bbox_inches='tight')
 plt.savefig('results/figures/figure_5_taxa_composition.pdf', dpi=300, bbox_inches='tight')
 print("Saved: results/taxa_composition/taxa_composition_by_treatment.pdf")
