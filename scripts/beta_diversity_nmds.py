@@ -19,14 +19,14 @@ def parse_sample_metadata(sample_names):
     metadata_list = []
     for sample in sample_names:
         treatment = 'Control' if sample[0] == 'C' else 'Roundup'
-        compartment = 'Gut' if '.In' in sample else 'Soil'
+        environment = 'Gut' if '.In' in sample else 'Soil'
         replicate_str = sample.split('.')[0][1:]
         replicate = int(replicate_str)
         
         metadata_list.append({
             'sample': sample,
             'treatment': treatment,
-            'compartment': compartment,
+            'environment': environment,
             'replicate': replicate
         })
     
@@ -109,16 +109,16 @@ def plot_nmds_with_features(nmds_df, metadata, distance_matrix, stress_value,
     colors = {'Control': '#DEEBF7', 'Roundup': '#08519C'}
     markers = {'Gut': 'o', 'Soil': 's'}
     
-    for (treatment, compartment), group in plot_data.groupby(['treatment', 'compartment']):
+    for (treatment, environment), group in plot_data.groupby(['treatment', 'environment']):
         ax.scatter(group['NMDS1'], group['NMDS2'],
-                  c=colors[treatment], marker=markers[compartment],
+                  c=colors[treatment], marker=markers[environment],
                   s=150, alpha=0.6, edgecolors='black', linewidth=0.8,
-                  label=f'{treatment} - {compartment}')
+                  label=f'{treatment} - {environment}')
     
     for treatment in ['Control', 'Roundup']:
-        for compartment in ['Gut', 'Soil']:
+        for environment in ['Gut', 'Soil']:
             subset = plot_data[(plot_data['treatment'] == treatment) &
-                             (plot_data['compartment'] == compartment)]
+                             (plot_data['environment'] == environment)]
             
             if len(subset) < 2:
                 continue
@@ -208,9 +208,9 @@ def run_analysis(feature_table_path, output_dir='results/beta_diversity', n_dims
     print("Parsing sample metadata from names...")
     metadata = parse_sample_metadata(feature_table.columns)
     print(f"Treatment: {metadata['treatment'].unique()}")
-    print(f"Compartments: {metadata['compartment'].unique()}")
+    print(f"Environments: {metadata['environment'].unique()}")
     print(f"Replicates per group:")
-    print(metadata.groupby(['treatment', 'compartment']).size())
+    print(metadata.groupby(['treatment', 'environment']).size())
     print()
     
     print("Computing Bray-Curtis distances...")
@@ -243,7 +243,7 @@ def run_analysis(feature_table_path, output_dir='results/beta_diversity', n_dims
     fig = plot_nmds_with_features(nmds_scores, metadata, distance_matrix, stress,
                                  output_file=f'{output_dir}/nmds_ordination_{n_dims}d.pdf', n_dims=n_dims)
     
-    caption = f"""NMDS ordination based on Bray-Curtis distances showing microbial community composition differences between control and Roundup-exposed earthworms in gut and soil compartments (stress = {stress:.3f}). Points represent individual samples, colored by treatment (light blue = control, dark blue = Roundup) and shaped by compartment (circles = gut, squares = soil). Treatment centroids are marked with '+' symbols. 95% confidence ellipses (dashed lines) enclose each treatment-compartment group. Stress value {stress:.3f} indicates {'good' if stress < 0.1 else 'acceptable' if stress < 0.2 else 'unsatisfactory'} fit of dissimilarities to {n_dims}-dimensional ordination space."""
+    caption = f"""NMDS ordination based on Bray-Curtis distances showing microbial community composition differences between control and Roundup-exposed earthworms in gut and soil environments (stress = {stress:.3f}). Points represent individual samples, colored by treatment (light blue = control, dark blue = Roundup) and shaped by environment (circles = gut, squares = soil). Treatment centroids are marked with '+' symbols. 95% confidence ellipses (dashed lines) enclose each treatment-environment group. Stress value {stress:.3f} indicates {'good' if stress < 0.1 else 'acceptable' if stress < 0.2 else 'unsatisfactory'} fit of dissimilarities to {n_dims}-dimensional ordination space."""
     
     with open(f'{output_dir}/nmds_figure_caption_{n_dims}d.txt', 'w') as f:
         f.write(caption)

@@ -1,4 +1,4 @@
-sample,treatment,compartment,replicate
+sample,treatment,environment,replicate
 C1.Soil,Control,Soil,1
 C2.Soil,Control,Soil,2
 C3.Soil,Control,Soil,3

@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """Combined NMDS (all 22 samples) testing Gut vs Soil separation, plus
-PERMDISP test for within-group dispersion (heterogeneity) by compartment.
+PERMDISP test for within-group dispersion (heterogeneity) by environment.
 
-The combined plot shows all four compartment x treatment groups (Gut
+The combined plot shows all four environment x treatment groups (Gut
 Control, Gut Roundup, Soil Control, Soil Roundup) with individual 95%
-confidence ellipses, so within-compartment treatment spread is visible
-on the same ordination used to test the compartment effect. The
-PERMANOVA and PERMDISP tests themselves still test compartment only
+confidence ellipses, so within-environment treatment spread is visible
+on the same ordination used to test the environment effect. The
+PERMANOVA and PERMDISP tests themselves still test environment only
 (Gut vs Soil), consistent with the question this script is built to
-answer; treatment-effect tests within each compartment are reported
-separately in beta_diversity_by_compartment.py.
+answer; treatment-effect tests within each environment are reported
+separately in beta_diversity_by_environment.py.
 
 PERMANOVA implemented per McArdle & Anderson (2001), the standard
 distance-based formulation building on Anderson (2001). PERMDISP
@@ -34,8 +34,8 @@ def parse_sample_metadata(sample_names):
     metadata_list = []
     for sample in sample_names:
         treatment = 'Control' if sample[0] == 'C' else 'Roundup'
-        compartment = 'Gut' if '.In' in sample else 'Soil'
-        metadata_list.append({'sample': sample, 'treatment': treatment, 'compartment': compartment})
+        environment = 'Gut' if '.In' in sample else 'Soil'
+        metadata_list.append({'sample': sample, 'treatment': treatment, 'environment': environment})
     return pd.DataFrame(metadata_list).set_index('sample')
 
 
@@ -152,10 +152,10 @@ def confidence_ellipse(x, y, n_std=2.0):
 
 
 def plot_combined_nmds(nmds_df, metadata, stress_value, permanova_results, permdisp_results, output_file):
-    """NMDS with all four compartment x treatment groups shown separately,
-    each with its own marker color and 95% confidence ellipse. Compartment
+    """NMDS with all four environment x treatment groups shown separately,
+    each with its own marker color and 95% confidence ellipse. Environment
     is encoded by marker shape (circle = Gut, square = Soil) in addition to
-    color, so the primary grouping variable being tested (compartment)
+    color, so the primary grouping variable being tested (environment)
     remains visually distinct from the secondary grouping (treatment).
     """
     plot_data = nmds_df.reset_index().merge(metadata.reset_index(), left_on='index', right_on='sample')
@@ -170,8 +170,8 @@ def plot_combined_nmds(nmds_df, metadata, stress_value, permanova_results, permd
         ('Soil', 'Roundup'): {'color': '#654321', 'marker': 's', 'label': 'Soil, Roundup'}
     }
 
-    for (compartment, treatment), style in group_styles.items():
-        subset = plot_data[(plot_data['compartment'] == compartment) & (plot_data['treatment'] == treatment)]
+    for (environment, treatment), style in group_styles.items():
+        subset = plot_data[(plot_data['environment'] == environment) & (plot_data['treatment'] == treatment)]
         if len(subset) == 0:
             continue
         ax.scatter(subset['NMDS1'], subset['NMDS2'], c=style['color'], marker=style['marker'],
@@ -203,14 +203,14 @@ def plot_combined_nmds(nmds_df, metadata, stress_value, permanova_results, permd
 
     ax.set_title(f'NMDS: All Samples, Bray-Curtis Distances\n(Stress = {stress_value:.3f}, {stress_interp})',
                 fontsize=13, fontweight='bold')
-    ax.legend(loc='best', fontsize=10, framealpha=0.9, title='Compartment, Treatment')
+    ax.legend(loc='best', fontsize=10, framealpha=0.9, title='Environment, Treatment')
     ax.grid(True, alpha=0.3, linestyle=':')
 
     stats_text = (f'All samples (n={len(plot_data)})\n'
-                 f'Compartment effect (PERMANOVA):\n'
+                 f'Environment effect (PERMANOVA):\n'
                  f'  R² = {permanova_results["r_squared"]:.4f}, pseudo-F = {permanova_results["pseudo_f"]:.4f}\n'
                  f'  p = {permanova_results["p_value"]:.4f} ({permanova_results["n_permutations"]} permutations)\n'
-                 f'Compartment dispersion (PERMDISP):\n'
+                 f'Environment dispersion (PERMDISP):\n'
                  f'  F = {permdisp_results["f_statistic"]:.4f}, p = {permdisp_results["p_value"]:.4f}\n'
                  f'Circles = Gut, Squares = Soil\n'
                  f'Dashed ellipses = 95% CI per group')
@@ -238,15 +238,15 @@ if __name__ == '__main__':
     print(f"Stress: {stress:.4f}")
     print()
 
-    print("Running PERMANOVA (compartment: Gut vs Soil)...")
-    permanova_results = permanova_test(distance_matrix, metadata, 'compartment', n_permutations=999)
+    print("Running PERMANOVA (environment: Gut vs Soil)...")
+    permanova_results = permanova_test(distance_matrix, metadata, 'environment', n_permutations=999)
     print(f"R² = {permanova_results['r_squared']:.4f}")
     print(f"pseudo-F = {permanova_results['pseudo_f']:.4f}")
     print(f"p = {permanova_results['p_value']:.4f} ({permanova_results['n_permutations']} permutations)")
     print()
 
-    print("Running PERMDISP (within-group dispersion by compartment)...")
-    permdisp_results = permdisp_test(distance_matrix, metadata, 'compartment')
+    print("Running PERMDISP (within-group dispersion by environment)...")
+    permdisp_results = permdisp_test(distance_matrix, metadata, 'environment')
     print(f"F = {permdisp_results['f_statistic']:.4f}")
     print(f"p = {permdisp_results['p_value']:.4f}")
     print()
@@ -257,7 +257,7 @@ if __name__ == '__main__':
 
     print("Creating plot...")
     plot_combined_nmds(nmds_scores, metadata, stress, permanova_results, permdisp_results,
-                       'results/beta_diversity_combined/nmds_all_samples_compartment.pdf')
+                       'results/beta_diversity_combined/nmds_all_samples_environment.pdf')
     plot_combined_nmds(nmds_scores, metadata, stress, permanova_results, permdisp_results,
                        'results/figures/figure_6_nmds_all_samples_gut_vs_soil.pdf')
 
@@ -266,7 +266,7 @@ if __name__ == '__main__':
     metadata.to_csv('results/beta_diversity_combined/metadata.csv')
 
     with open('results/beta_diversity_combined/permdisp_results.txt', 'w') as f:
-        f.write("PERMDISP: Within-group dispersion by compartment\n")
+        f.write("PERMDISP: Within-group dispersion by environment\n")
         f.write("=" * 60 + "\n\n")
         f.write(f"F statistic: {permdisp_results['f_statistic']:.4f}\n")
         f.write(f"p-value: {permdisp_results['p_value']:.4f}\n\n")

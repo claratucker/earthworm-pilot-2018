@@ -27,8 +27,8 @@ def parse_metadata(sample_names):
     metadata_list = []
     for sample in sample_names:
         treatment = 'Control' if sample[0] == 'C' else 'Roundup'
-        compartment = 'Gut' if '.In' in sample else 'Soil'
-        metadata_list.append({'sample': sample, 'treatment': treatment, 'compartment': compartment})
+        environment = 'Gut' if '.In' in sample else 'Soil'
+        metadata_list.append({'sample': sample, 'treatment': treatment, 'environment': environment})
     return pd.DataFrame(metadata_list).set_index('sample')
 
 metadata = parse_metadata(feature_table.columns)
@@ -73,10 +73,10 @@ for sample in feature_table.columns:
         rel_class_ii = 0
     
     treatment = metadata.loc[sample, 'treatment']
-    compartment = metadata.loc[sample, 'compartment']
+    environment = metadata.loc[sample, 'environment']
     
     results.append({
-        'Compartment': compartment,
+        'Environment': environment,
         'Treatment': treatment,
         'Class I (Sensitive)': rel_class_i,
         'Class II (Resistant)': rel_class_ii
@@ -87,17 +87,17 @@ results_df = pd.DataFrame(results)
 # Create summary table
 summary_rows = []
 
-for compartment in ['Gut', 'Soil']:
+for environment in ['Gut', 'Soil']:
     for epsps_class in ['Class I (Sensitive)', 'Class II (Resistant)']:
-        control_vals = results_df[(results_df['Compartment'] == compartment) & 
+        control_vals = results_df[(results_df['Environment'] == environment) & 
                                  (results_df['Treatment'] == 'Control')][epsps_class].values
-        roundup_vals = results_df[(results_df['Compartment'] == compartment) & 
+        roundup_vals = results_df[(results_df['Environment'] == environment) & 
                                  (results_df['Treatment'] == 'Roundup')][epsps_class].values
         
         u_stat, p_val = mannwhitneyu(control_vals, roundup_vals)
         
         summary_rows.append({
-            'Compartment': compartment,
+            'Environment': environment,
             'EPSPS Class': epsps_class,
             'Control Mean': f"{control_vals.mean():.4f}",
             'Control SD': f"{control_vals.std():.4f}",
@@ -113,7 +113,7 @@ for compartment in ['Gut', 'Soil']:
 summary_table = pd.DataFrame(summary_rows)
 
 print("\n" + "=" * 120)
-print("TABLE: EPSPS Class Distribution by Treatment and Compartment")
+print("TABLE: EPSPS Class Distribution by Treatment and Environment")
 print("=" * 120)
 print()
 print(summary_table.to_string(index=False))
@@ -126,7 +126,7 @@ summary_table.to_csv('results/epsps_by_treatment/epsps_summary_table.csv', index
 print("\nSaved: results/epsps_by_treatment/epsps_summary_table.csv")
 
 with open('results/epsps_by_treatment/epsps_summary_table.txt', 'w') as f:
-    f.write("TABLE: EPSPS Class Distribution by Treatment and Compartment\n")
+    f.write("TABLE: EPSPS Class Distribution by Treatment and Environment\n")
     f.write("=" * 120 + "\n\n")
     f.write(summary_table.to_string(index=False))
     f.write("\n\nNS = not significant (p >= 0.05)\n")

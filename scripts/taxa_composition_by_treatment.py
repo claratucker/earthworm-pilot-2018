@@ -22,8 +22,8 @@ def parse_metadata(sample_names):
     metadata_list = []
     for sample in sample_names:
         treatment = 'Control' if sample[0] == 'C' else 'Roundup'
-        compartment = 'Gut' if '.In' in sample else 'Soil'
-        metadata_list.append({'sample': sample, 'treatment': treatment, 'compartment': compartment})
+        environment = 'Gut' if '.In' in sample else 'Soil'
+        metadata_list.append({'sample': sample, 'treatment': treatment, 'environment': environment})
     return pd.DataFrame(metadata_list).set_index('sample')
 
 metadata = parse_metadata(feature_table.columns)
@@ -84,10 +84,10 @@ treatment_text_colors = {
 
 fig, axes = plt.subplots(1, 2, figsize=(18, 7))
 
-for ax_idx, compartment in enumerate(['Gut', 'Soil']):
+for ax_idx, environment in enumerate(['Gut', 'Soil']):
     ax = axes[ax_idx]
 
-    comp_data = composition[composition['compartment'] == compartment]
+    comp_data = composition[composition['environment'] == environment]
 
     sample_order = []
     for treatment in ['Control', 'Roundup']:
@@ -103,15 +103,15 @@ for ax_idx, compartment in enumerate(['Gut', 'Soil']):
         bottom += values
 
     ax.set_ylabel('Relative Abundance', fontsize=12)
-    ax.set_title(compartment, fontsize=14, fontweight='bold')
+    ax.set_title(environment, fontsize=14, fontweight='bold')
     ax.set_xticks(range(len(comp_data)))
     ax.set_xticklabels(comp_data.index, rotation=45, ha='right', fontsize=9)
     ax.set_xlabel('')
 
     for tick_idx, sample in enumerate(comp_data.index):
         treatment = comp_data.loc[sample, 'treatment']
-        box_color = treatment_box_colors[(compartment, treatment)]
-        text_color = treatment_text_colors[(compartment, treatment)]
+        box_color = treatment_box_colors[(environment, treatment)]
+        text_color = treatment_text_colors[(environment, treatment)]
         label = ax.get_xticklabels()[tick_idx]
         label.set_color(text_color)
         label.set_fontweight('bold')
@@ -143,9 +143,9 @@ print("\n" + "=" * 70)
 print("MEAN RELATIVE ABUNDANCE BY TREATMENT")
 print("=" * 70)
 
-for compartment in ['Gut', 'Soil']:
-    print(f"\n{compartment.upper()}")
-    comp_data = composition[composition['compartment'] == compartment]
+for environment in ['Gut', 'Soil']:
+    print(f"\n{environment.upper()}")
+    comp_data = composition[composition['environment'] == environment]
     for treatment in ['Control', 'Roundup']:
         treat_data = comp_data[comp_data['treatment'] == treatment]
         print(f"\n  {treatment} (n={len(treat_data)}):")

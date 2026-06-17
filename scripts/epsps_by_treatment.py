@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Analyze EPSPS Class I/II balance by treatment and compartment."""
+"""Analyze EPSPS Class I/II balance by treatment and environment."""
 
 import pandas as pd
 import numpy as np
@@ -29,8 +29,8 @@ def parse_metadata(sample_names):
     metadata_list = []
     for sample in sample_names:
         treatment = 'Control' if sample[0] == 'C' else 'Roundup'
-        compartment = 'Gut' if '.In' in sample else 'Soil'
-        metadata_list.append({'sample': sample, 'treatment': treatment, 'compartment': compartment})
+        environment = 'Gut' if '.In' in sample else 'Soil'
+        metadata_list.append({'sample': sample, 'treatment': treatment, 'environment': environment})
     return pd.DataFrame(metadata_list).set_index('sample')
 
 metadata = parse_metadata(feature_table.columns)
@@ -76,12 +76,12 @@ for sample in feature_table.columns:
         rel_class_ii = 0
     
     treatment = metadata.loc[sample, 'treatment']
-    compartment = metadata.loc[sample, 'compartment']
+    environment = metadata.loc[sample, 'environment']
     
     results.append({
         'sample': sample,
         'treatment': treatment,
-        'compartment': compartment,
+        'environment': environment,
         'class_I_sensitive': rel_class_i,
         'class_II_resistant': rel_class_ii
     })
@@ -89,10 +89,10 @@ for sample in feature_table.columns:
 results_df = pd.DataFrame(results)
 
 print("=" * 70)
-print("EPSPS CLASS RELATIVE ABUNDANCE BY TREATMENT AND COMPARTMENT")
+print("EPSPS CLASS RELATIVE ABUNDANCE BY TREATMENT AND ENVIRONMENT")
 print("=" * 70)
 print()
-print(results_df.groupby(['compartment', 'treatment'])[['class_I_sensitive', 'class_II_resistant']].agg(['mean', 'std', 'count']))
+print(results_df.groupby(['environment', 'treatment'])[['class_I_sensitive', 'class_II_resistant']].agg(['mean', 'std', 'count']))
 print()
 
 print("=" * 70)
@@ -102,17 +102,17 @@ print()
 
 p_values = {}
 
-for compartment in ['Gut', 'Soil']:
-    print(f"\n{compartment.upper()} COMPARTMENT")
+for environment in ['Gut', 'Soil']:
+    print(f"\n{environment.upper()} ENVIRONMENT")
     print()
     
-    comp_data = results_df[results_df['compartment'] == compartment]
+    comp_data = results_df[results_df['environment'] == environment]
     
     control_class_i = comp_data[comp_data['treatment'] == 'Control']['class_I_sensitive'].values
     roundup_class_i = comp_data[comp_data['treatment'] == 'Roundup']['class_I_sensitive'].values
     
     u_stat, p_value_i = mannwhitneyu(control_class_i, roundup_class_i)
-    p_values[f'I_{compartment}'] = p_value_i
+    p_values[f'I_{environment}'] = p_value_i
     print(f"Class I (Sensitive) by Treatment:")
     print(f"  Control (n={len(control_class_i)}): mean={control_class_i.mean():.4f}, sd={control_class_i.std():.4f}")
     print(f"  Roundup (n={len(roundup_class_i)}): mean={roundup_class_i.mean():.4f}, sd={roundup_class_i.std():.4f}")
@@ -123,40 +123,40 @@ for compartment in ['Gut', 'Soil']:
     roundup_class_ii = comp_data[comp_data['treatment'] == 'Roundup']['class_II_resistant'].values
     
     u_stat, p_value_ii = mannwhitneyu(control_class_ii, roundup_class_ii)
-    p_values[f'II_{compartment}'] = p_value_ii
+    p_values[f'II_{environment}'] = p_value_ii
     print(f"Class II (Resistant) by Treatment:")
     print(f"  Control (n={len(control_class_ii)}): mean={control_class_ii.mean():.4f}, sd={control_class_ii.std():.4f}")
     print(f"  Roundup (n={len(roundup_class_ii)}): mean={roundup_class_ii.mean():.4f}, sd={roundup_class_ii.std():.4f}")
     print(f"  Mann-Whitney U: U={u_stat:.1f}, p={p_value_ii:.4f}")
     print()
 
-# Plot 2x2: Class (I, II) x Compartment (Gut, Soil)
+# Plot 2x2: Class (I, II) x Environment (Gut, Soil)
 fig, axes = plt.subplots(2, 2, figsize=(14, 10))
 
 classes = [('class_I_sensitive', 'I'), ('class_II_resistant', 'II')]
 class_titles = ['Class I (Sensitive)', 'Class II (Resistant)']
-compartments = ['Gut', 'Soil']
+environments = ['Gut', 'Soil']
 color_schemes = {
     'Gut': ['#90EE90', '#0B3D0B'],
     'Soil': ['#F5DEB3', '#654321']
 }
 
 for row, ((class_col, class_key), class_title) in enumerate(zip(classes, class_titles)):
-    for col, compartment in enumerate(compartments):
+    for col, environment in enumerate(environments):
         ax = axes[row, col]
         
-        comp_data = results_df[results_df['compartment'] == compartment]
+        comp_data = results_df[results_df['environment'] == environment]
         
-        p_val = p_values[f'{class_key}_{compartment}']
+        p_val = p_values[f'{class_key}_{environment}']
         
         sns.boxplot(data=comp_data, x='treatment', y=class_col, ax=ax,
-                   palette=color_schemes[compartment])
+                   palette=color_schemes[environment])
         sns.stripplot(data=comp_data, x='treatment', y=class_col, ax=ax,
                      color='black', alpha=0.4, size=6)
         
         ax.set_ylabel('Relative Abundance', fontsize=11)
         ax.set_xlabel('Treatment', fontsize=11)
-        ax.set_title(f'{class_title} by Treatment\n{compartment} Compartment', 
+        ax.set_title(f'{class_title} by Treatment\n{environment} Environment', 
                     fontsize=12, fontweight='bold')
         ax.grid(True, alpha=0.3, axis='y')
         

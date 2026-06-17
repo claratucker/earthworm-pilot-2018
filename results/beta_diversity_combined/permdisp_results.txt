@@ -1,4 +1,4 @@
-PERMDISP: Within-group dispersion by compartment
+PERMDISP: Within-group dispersion by environment
 ============================================================
 
 F statistic: 0.0002

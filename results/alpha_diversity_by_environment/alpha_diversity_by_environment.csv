@@ -1,4 +1,4 @@
-sample,Observed,Shannon,pd,compartment,treatment,compartment_treatment
+sample,Observed,Shannon,pd,environment,treatment,environment_treatment
 C1.In,101,2.753662775585687,7.1736647190000005,Gut,Control,"Gut
 Control"
 C1.Soil,77,3.780617750013021,5.699154827,Soil,Control,"Soil

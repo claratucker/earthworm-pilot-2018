@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Beta diversity NMDS stratified by compartment (Gut vs Soil separately).
+"""Beta diversity NMDS stratified by environment (Gut vs Soil separately).
 
 PERMANOVA implemented per McArdle & Anderson (2001), the standard
 distance-based formulation. Total and within-group sums of squares are
@@ -27,14 +27,14 @@ def parse_sample_metadata(sample_names):
     metadata_list = []
     for sample in sample_names:
         treatment = 'Control' if sample[0] == 'C' else 'Roundup'
-        compartment = 'Gut' if '.In' in sample else 'Soil'
+        environment = 'Gut' if '.In' in sample else 'Soil'
         replicate_str = sample.split('.')[0][1:]
         replicate = int(replicate_str)
 
         metadata_list.append({
             'sample': sample,
             'treatment': treatment,
-            'compartment': compartment,
+            'environment': environment,
             'replicate': replicate
         })
 
@@ -162,8 +162,8 @@ def permanova_test(distance_matrix, metadata, treatment_column='treatment',
            'n_permutations': n_permutations}
 
 
-def plot_nmds_compartment(nmds_df, metadata, stress_value, compartment, permanova_results, output_file=None):
-    """Create NMDS plot for single compartment with stats."""
+def plot_nmds_environment(nmds_df, metadata, stress_value, environment, permanova_results, output_file=None):
+    """Create NMDS plot for single environment with stats."""
 
     plot_data = nmds_df.reset_index()
     plot_data = plot_data.merge(metadata.reset_index(), left_on='index', right_on='sample')
@@ -171,7 +171,7 @@ def plot_nmds_compartment(nmds_df, metadata, stress_value, compartment, permanov
 
     fig, ax = plt.subplots(figsize=(12, 10))
 
-    if compartment == 'Gut':
+    if environment == 'Gut':
         colors = {'Control': '#90EE90', 'Roundup': '#0B3D0B'}
     else:
         colors = {'Control': '#F5DEB3', 'Roundup': '#654321'}
@@ -216,7 +216,7 @@ def plot_nmds_compartment(nmds_df, metadata, stress_value, compartment, permanov
     else:
         stress_interp = "Moderate distortion"
 
-    ax.set_title(f'NMDS: {compartment} Compartment - Bray-Curtis Distances\n(Stress = {stress_value:.3f}, {stress_interp})',
+    ax.set_title(f'NMDS: {environment} Environment - Bray-Curtis Distances\n(Stress = {stress_value:.3f}, {stress_interp})',
                 fontsize=13, fontweight='bold')
 
     ax.legend(loc='best', fontsize=11, framealpha=0.9)
@@ -225,7 +225,7 @@ def plot_nmds_compartment(nmds_df, metadata, stress_value, compartment, permanov
     n_samples = len(plot_data)
     f_str = f"{permanova_results['pseudo_f']:.4f}" if not np.isnan(permanova_results['pseudo_f']) else "NA"
     p_str = f"{permanova_results['p_value']:.4f}" if not np.isnan(permanova_results['p_value']) else "NA"
-    stats_text = (f'{compartment} (n={n_samples})\n'
+    stats_text = (f'{environment} (n={n_samples})\n'
                  f"R² (treatment) = {permanova_results['r_squared']:.4f}\n"
                  f"pseudo-F = {f_str}\n"
                  f"p = {p_str} ({permanova_results['n_permutations']} permutations)")
@@ -242,13 +242,13 @@ def plot_nmds_compartment(nmds_df, metadata, stress_value, compartment, permanov
     return fig
 
 
-def run_compartment_analysis(feature_table_path, compartment, output_dir='results/beta_diversity_by_compartment'):
-    """Run NMDS for single compartment."""
+def run_environment_analysis(feature_table_path, environment, output_dir='results/beta_diversity_by_environment'):
+    """Run NMDS for single environment."""
     import os
     os.makedirs(output_dir, exist_ok=True)
 
     print("=" * 70)
-    print(f"BETA DIVERSITY - {compartment.upper()} COMPARTMENT")
+    print(f"BETA DIVERSITY - {environment.upper()} ENVIRONMENT")
     print("=" * 70)
     print()
 
@@ -258,11 +258,11 @@ def run_compartment_analysis(feature_table_path, compartment, output_dir='result
     print("Parsing metadata...")
     metadata = parse_sample_metadata(feature_table.columns)
 
-    compartment_samples = metadata[metadata['compartment'] == compartment].index.tolist()
-    feature_table_subset = feature_table[compartment_samples]
-    metadata_subset = metadata.loc[compartment_samples]
+    environment_samples = metadata[metadata['environment'] == environment].index.tolist()
+    feature_table_subset = feature_table[environment_samples]
+    metadata_subset = metadata.loc[environment_samples]
 
-    print(f"Samples in {compartment}: {len(compartment_samples)}")
+    print(f"Samples in {environment}: {len(environment_samples)}")
     print(f"Replicates per treatment:")
     print(metadata_subset.groupby('treatment').size())
     print()
@@ -284,34 +284,34 @@ def run_compartment_analysis(feature_table_path, compartment, output_dir='result
     print()
 
     print("Saving results...")
-    nmds_scores.to_csv(f'{output_dir}/{compartment.lower()}_nmds_scores.csv')
-    distance_matrix.to_csv(f'{output_dir}/{compartment.lower()}_bray_curtis_distances.csv')
-    metadata_subset.to_csv(f'{output_dir}/{compartment.lower()}_metadata.csv')
+    nmds_scores.to_csv(f'{output_dir}/{environment.lower()}_nmds_scores.csv')
+    distance_matrix.to_csv(f'{output_dir}/{environment.lower()}_bray_curtis_distances.csv')
+    metadata_subset.to_csv(f'{output_dir}/{environment.lower()}_metadata.csv')
 
     print("Creating plot...")
-    fig = plot_nmds_compartment(nmds_scores, metadata_subset, stress, compartment,
+    fig = plot_nmds_environment(nmds_scores, metadata_subset, stress, environment,
                                perm_results,
-                               output_file=f'{output_dir}/{compartment.lower()}_nmds_ordination.pdf')
+                               output_file=f'{output_dir}/{environment.lower()}_nmds_ordination.pdf')
 
-    caption = (f"NMDS ordination of {compartment} microbiome showing Bray-Curtis distances "
+    caption = (f"NMDS ordination of {environment} microbiome showing Bray-Curtis distances "
               f"between control and Roundup-treated samples (stress = {stress:.3f}). "
               f"Points colored by treatment. Centroids marked with '+' symbols. "
               f"95% confidence ellipses (dashed lines) show treatment group spread. "
               f"R²={perm_results['r_squared']:.4f}, pseudo-F={perm_results['pseudo_f']:.4f}, "
               f"p={perm_results['p_value']:.4f} ({perm_results['n_permutations']} permutations). "
-              f"n={len(compartment_samples)}.")
+              f"n={len(environment_samples)}.")
 
-    with open(f'{output_dir}/{compartment.lower()}_figure_caption.txt', 'w') as f:
+    with open(f'{output_dir}/{environment.lower()}_figure_caption.txt', 'w') as f:
         f.write(caption)
 
     print()
     print("=" * 70)
-    print(f"{compartment.upper()} RESULTS")
+    print(f"{environment.upper()} RESULTS")
     print(f"  Stress: {stress:.4f}")
     print(f"  R² (treatment): {perm_results['r_squared']:.4f}")
     print(f"  pseudo-F: {perm_results['pseudo_f']:.4f}")
     print(f"  p-value: {perm_results['p_value']:.4f}")
-    print(f"  n={len(compartment_samples)}")
+    print(f"  n={len(environment_samples)}")
     print("=" * 70)
     print()
 
@@ -320,14 +320,14 @@ def run_compartment_analysis(feature_table_path, compartment, output_dir='result
 
 if __name__ == '__main__':
 
-    gut_nmds, gut_dist, gut_meta, gut_stress, gut_perm = run_compartment_analysis(
+    gut_nmds, gut_dist, gut_meta, gut_stress, gut_perm = run_environment_analysis(
         'r/exported/feature-table.tsv', 'Gut')
 
-    soil_nmds, soil_dist, soil_meta, soil_stress, soil_perm = run_compartment_analysis(
+    soil_nmds, soil_dist, soil_meta, soil_stress, soil_perm = run_environment_analysis(
         'r/exported/feature-table.tsv', 'Soil')
 
     print("\n" + "=" * 70)
-    print("SUMMARY: TREATMENT EFFECT BY COMPARTMENT (corrected PERMANOVA)")
+    print("SUMMARY: TREATMENT EFFECT BY ENVIRONMENT (corrected PERMANOVA)")
     print("=" * 70)
     print(f"Gut   (n=16): Stress={gut_stress:.3f}, R²={gut_perm['r_squared']:.4f}, pseudo-F={gut_perm['pseudo_f']:.4f}, p={gut_perm['p_value']:.4f}")
     print(f"Soil  (n=6):  Stress={soil_stress:.3f}, R²={soil_perm['r_squared']:.4f}, pseudo-F={soil_perm['pseudo_f']:.4f}, p={soil_perm['p_value']:.4f}")

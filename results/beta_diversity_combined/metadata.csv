@@ -1,4 +1,4 @@
-sample,treatment,compartment
+sample,treatment,environment
 C1.In,Control,Gut
 C1.Soil,Control,Soil
 C2.In,Control,Gut

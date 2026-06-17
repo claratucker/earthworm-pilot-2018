@@ -1,4 +1,4 @@
-sample,treatment,compartment,class_I_sensitive,class_II_resistant
+sample,treatment,environment,class_I_sensitive,class_II_resistant
 C1.In,Control,Gut,0.9155356915753711,0.05277883759379372
 C1.Soil,Control,Soil,0.21141185076810534,0.5698610095098756
 C2.In,Control,Gut,0.2862548578441399,0.3824913070157496

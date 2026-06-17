@@ -3,7 +3,7 @@
 
 Compares within-group distances (Gut-Gut, Soil-Soil) against between-group
 distances (Gut-Soil) directly from the distance matrix, with no embedding,
-no R-squared formula, just the raw numbers. If compartment is a real
+no R-squared formula, just the raw numbers. If environment is a real
 driver of composition, between-group distances should be clearly larger
 than within-group distances.
 """
@@ -15,8 +15,8 @@ distance_matrix = pd.read_csv('results/beta_diversity_combined/bray_curtis_dista
 metadata = pd.read_csv('results/beta_diversity_combined/metadata.csv', index_col=0)
 
 samples = distance_matrix.index.tolist()
-gut_samples = metadata[metadata['compartment'] == 'Gut'].index.tolist()
-soil_samples = metadata[metadata['compartment'] == 'Soil'].index.tolist()
+gut_samples = metadata[metadata['environment'] == 'Gut'].index.tolist()
+soil_samples = metadata[metadata['environment'] == 'Soil'].index.tolist()
 
 within_gut = []
 within_soil = []

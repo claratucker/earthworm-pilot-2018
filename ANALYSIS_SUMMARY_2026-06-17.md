@@ -3,7 +3,7 @@
 ## Project Overview
 Glyphosate-exposed earthworms (Lumbricus terrestris) and their associated soil microbiome.
 - Treatments: Control (C) vs. Roundup-treated (R)
-- Compartments: Earthworm gut (In) and surrounding soil (Soil)
+- Environments: Earthworm gut (In) and surrounding soil (Soil)
 - Samples: ~20 total (multiple replicates per treatment)
 
 ## Completed Steps

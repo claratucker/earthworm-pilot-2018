@@ -1,4 +1,4 @@
-sample,treatment,compartment,replicate
+sample,treatment,environment,replicate
 C1.In,Control,Gut,1
 C2.In,Control,Gut,2
 C3.In,Control,Gut,3
