@@ -1,10 +1,16 @@
 #!/usr/bin/env Rscript
-# 08_generate_missing_figures.R -- Generate missing figures for 2018 pilot
-# Figures 3 (rarefaction), 8-10 (differential abundance)
+# Generate figures 3, 8, 9, 10, plus family-level taxa composition for 2018 pilot.
+#
+# Methods and citations:
+#   Rarefaction curves: vegan::rarecurve (Oksanen et al. 2022).
+#   DESeq2 differential abundance: Love et al. 2014 Genome Biol 15:550.
+#     Standard thresholds: |log2FC| >= 1, padj < 0.05 with Benjamini-Hochberg
+#     FDR correction (Benjamini and Hochberg 1995 J R Stat Soc B 57:289).
+#   phyloseq for data handling: McMurdie and Holmes 2013 PLoS ONE 8:e61217.
 
 suppressMessages({
   library(phyloseq); library(vegan); library(ape)
-  library(ggplot2); library(dplyr); library(tidyr); library(readr)
+  library(ggplot2); library(dplyr); library(tidyr); library(DESeq2)
 })
 
 PROJECT <- path.expand("~/pilot2018")
@@ -13,7 +19,7 @@ OUT     <- file.path(PROJECT, "results/figures_generated")
 dir.create(OUT, showWarnings = FALSE)
 set.seed(1)
 
-# Load exported QIIME2 artifacts
+# Load exported QIIME2 artifacts.
 otu_raw <- read.delim(file.path(EXP, "feature-table.tsv"), skip = 1,
                       check.names = FALSE, row.names = 1)
 otu <- otu_table(as.matrix(otu_raw), taxa_are_rows = TRUE)
@@ -32,182 +38,241 @@ meta <- read.delim(file.path(PROJECT, "data/metadata.tsv"),
 meta$environment <- meta$compartment
 SAM <- sample_data(meta)
 
-tree_path <- file.path(EXP, "tree.nwk")
-tree <- read_tree(tree_path)
-
+tree <- read_tree(file.path(EXP, "tree.nwk"))
 ps <- phyloseq(otu, TAX, SAM, tree)
 
-# FIGURE 3: RAREFACTION CURVES
-cat("Generating Figure 3: Rarefaction Curves...\n")
+# Figure 3. Rarefaction curves using vegan::rarecurve.
+cat("Generating Figure 3: Rarefaction Curves\n")
+otu_mat <- t(as(otu_table(ps), "matrix"))
+min_depth <- min(rowSums(otu_mat))
+cat(sprintf("Rarefaction depth = %d reads, all %d samples retained\n",
+            min_depth, nrow(otu_mat)))
 
-min_depth <- min(sample_sums(ps))
-cat(sprintf("Rarefying to depth = %d reads\n", min_depth))
-
-rarefaction_list <- lapply(1:5, function(i) {
-  ps_rar <- rarefy_even_depth(ps, sample.size = min_depth, 
-                              rngseed = i, replace = FALSE, verbose = FALSE)
-  alpha_i <- estimate_richness(ps_rar, measures = "Observed")
-  alpha_i$sample_name <- rownames(alpha_i)
-  alpha_i$iteration <- i
-  return(alpha_i)
-})
-
-rarefaction_data <- do.call(rbind, rarefaction_list)
-rarefaction_data$depth <- min_depth
-rarefaction_data <- merge(rarefaction_data, 
-                          meta[c("environment", "treatment")], 
-                          by = "row.names")
-rownames(rarefaction_data) <- rarefaction_data$Row.names
-rarefaction_data$Row.names <- NULL
-
-p_rarefaction <- ggplot(rarefaction_data, aes(x = depth, y = Observed, 
-                                               group = sample_name, 
-                                               color = environment)) +
-  geom_line(alpha = 0.6, linewidth = 1) +
-  facet_wrap(~treatment) +
-  labs(x = "Rarefaction Depth (reads)", y = "Observed Richness", 
-       title = "Rarefaction Curves") +
-  theme_minimal()
-
-ggsave(file.path(OUT, "figure_3_rarefaction.pdf"), p_rarefaction, 
-       width = 10, height = 6)
+pdf(file.path(OUT, "figure_3_rarefaction.pdf"), width = 9, height = 6)
+par(mar = c(5, 5, 4, 2))
+rarecurve(otu_mat, step = 500, sample = min_depth,
+          xlab = "Sample Size", ylab = "Species", label = FALSE,
+          main = "Rarefaction Curves", col = "black")
+legend("bottomright",
+       legend = c(sprintf("Rarefaction depth = %d", min_depth),
+                  sprintf("All %d samples retained", nrow(otu_mat)),
+                  sprintf("Lowest-depth sample: %d reads", min_depth)),
+       bg = "wheat", cex = 0.9, box.lwd = 0.5)
+dev.off()
 cat("Figure 3 saved\n")
 
-# FIGURES 8-10: DIFFERENTIAL ABUNDANCE (Gut only)
-cat("Generating Figures 8-10: Differential Abundance Analysis...\n")
+# Figure 2b. Treatment-averaged taxonomic composition at family level.
+cat("Generating Figure 2b: Family-Level Taxa Composition\n")
+ps_rel <- transform_sample_counts(ps, function(x) x / sum(x))
+ps_fam <- tax_glom(ps_rel, taxrank = "Family", NArm = FALSE)
 
+fam_df <- psmelt(ps_fam) %>%
+  group_by(environment, treatment, Family) %>%
+  summarise(mean_abundance = mean(Abundance), .groups = "drop")
+
+top_fam <- fam_df %>%
+  group_by(Family) %>%
+  summarise(overall = mean(mean_abundance), .groups = "drop") %>%
+  arrange(desc(overall)) %>%
+  head(15) %>%
+  pull(Family)
+
+fam_df$Family_plot <- ifelse(fam_df$Family %in% top_fam,
+                              as.character(fam_df$Family),
+                              "Other (<1% mean abundance)")
+fam_df$Family_plot <- factor(fam_df$Family_plot,
+                              levels = c(top_fam, "Other (<1% mean abundance)"))
+
+p_fam <- ggplot(fam_df, aes(x = treatment, y = mean_abundance, fill = Family_plot)) +
+  geom_col() +
+  facet_wrap(~environment) +
+  labs(x = "Treatment", y = "Mean relative abundance", fill = "Family",
+       title = "Treatment-averaged taxonomic composition (family level)") +
+  theme_bw() +
+  theme(legend.text = element_text(size = 7),
+        legend.key.size = unit(0.3, "cm"))
+
+ggsave(file.path(OUT, "figure_2b_taxa_composition_family.pdf"), p_fam,
+       width = 10, height = 6)
+cat("Figure 2b saved\n")
+
+# Figures 8-10. Differential abundance via DESeq2 on gut samples.
+cat("Running DESeq2 on gut samples\n")
 ps_gut <- subset_samples(ps, environment == "gut")
-ps_gut_rel <- transform_sample_counts(ps_gut, function(x) x / sum(x))
+ps_gut <- prune_taxa(taxa_sums(ps_gut) > 0, ps_gut)
 
-# Get abundance data
-abund_df <- as.data.frame(otu_table(ps_gut_rel))
-abund_df$ASV <- rownames(abund_df)
+dds <- phyloseq_to_deseq2(ps_gut, ~treatment)
+dds <- estimateSizeFactors(dds, type = "poscounts")
+dds <- DESeq(dds, test = "Wald", fitType = "local")
+res <- results(dds, contrast = c("treatment", "roundup", "control"))
 
-abund_long <- reshape2::melt(abund_df, id.vars = "ASV", 
-                              variable.name = "sample_name",
-                              value.name = "rel_abundance")
-
-# Add taxonomy
+res_df <- as.data.frame(res)
+res_df$ASV <- rownames(res_df)
 tax_df <- as.data.frame(tax_split)
 tax_df$ASV <- rownames(tax_df)
-abund_long <- merge(abund_long, tax_df, by = "ASV", all.x = TRUE)
+res_df <- merge(res_df, tax_df, by = "ASV", all.x = TRUE)
+res_df$padj[is.na(res_df$padj)] <- 1
 
-# Add metadata
-meta$sample_name <- rownames(meta)
-abund_long <- merge(abund_long, meta[c("environment", "treatment", "sample_name")], 
-                    by = "sample_name", all.x = TRUE)
+sig_asvs <- res_df[res_df$padj < 0.05 & !is.na(res_df$padj), ]
+n_up <- sum(sig_asvs$log2FoldChange > 0)
+n_down <- sum(sig_asvs$log2FoldChange < 0)
+cat(sprintf("DESeq2: %d significant ASVs (padj < 0.05): %d up, %d down\n",
+            nrow(sig_asvs), n_up, n_down))
 
-# Calculate mean abundance by ASV and treatment
-asv_means <- aggregate(rel_abundance ~ ASV + treatment + Genus, 
-                       data = abund_long, 
-                       FUN = function(x) c(mean = mean(x), 
-                                          sd = sd(x), 
-                                          n = length(x)))
-asv_means <- cbind(asv_means[,1:3], asv_means[,4])
-colnames(asv_means)[4:6] <- c("mean_abundance", "sd_abundance", "n")
-asv_means$se <- asv_means$sd_abundance / sqrt(asv_means$n)
+write.csv(res_df, file.path(OUT, "deseq2_gut_roundup_vs_control.csv"),
+          row.names = FALSE)
 
-# Fold change: Roundup vs Control
-control_means <- asv_means[asv_means$treatment == "control", c("ASV", "mean_abundance")]
-colnames(control_means) <- c("ASV", "Control")
-roundup_means <- asv_means[asv_means$treatment == "roundup", c("ASV", "mean_abundance")]
-colnames(roundup_means) <- c("ASV", "Roundup")
+# Figure 8. Top responsive taxa.
+cat("Generating Figure 8: Top Responsive Taxa (significant only)\n")
 
-fc_data <- merge(control_means, roundup_means, by = "ASV", all = TRUE)
-fc_data[is.na(fc_data)] <- 1e-6
-fc_data$log2fc <- log2(fc_data$Roundup / fc_data$Control)
+top_up <- sig_asvs %>%
+  filter(log2FoldChange > 0) %>%
+  arrange(padj) %>%
+  head(6) %>%
+  mutate(direction = "Increases with treatment")
+top_down <- sig_asvs %>%
+  filter(log2FoldChange < 0) %>%
+  arrange(padj) %>%
+  head(6) %>%
+  mutate(direction = "Decreases with treatment")
+top_responders <- rbind(top_up, top_down)
 
-# Add genus info
-fc_data <- merge(fc_data, 
-                 unique(abund_long[c("ASV", "Genus")]), 
-                 by = "ASV", all.x = TRUE)
-fc_data <- fc_data[order(abs(fc_data$log2fc), decreasing = TRUE), ]
+if (nrow(top_responders) == 0) {
+  cat("No significant responders, using top 12 by absolute log2FC\n")
+  top_responders <- res_df %>%
+    arrange(desc(abs(log2FoldChange))) %>%
+    head(12) %>%
+    mutate(direction = ifelse(log2FoldChange > 0,
+                              "Increases with treatment",
+                              "Decreases with treatment"))
+}
 
-# FIGURE 8: TOP RESPONDERS
-cat("Generating Figure 8: Top Responders...\n")
+ps_gut_rel <- transform_sample_counts(ps_gut, function(x) x / sum(x))
+abund_mat <- as.data.frame(otu_table(ps_gut_rel))
+abund_mat$ASV <- rownames(abund_mat)
+abund_long <- abund_mat %>%
+  filter(ASV %in% top_responders$ASV) %>%
+  pivot_longer(cols = -ASV, names_to = "sample_id", values_to = "rel_abund") %>%
+  left_join(data.frame(sample_id = rownames(meta),
+                       treatment = meta$treatment,
+                       stringsAsFactors = FALSE), by = "sample_id") %>%
+  left_join(top_responders[, c("ASV", "Genus", "padj", "direction")], by = "ASV")
 
-top_up <- fc_data[fc_data$log2fc > 0, "ASV"][1:6]
-top_down <- fc_data[fc_data$log2fc < 0, "ASV"][1:6]
-top_asv <- c(na.omit(top_up), na.omit(top_down))
+abund_long$asv_short <- substr(abund_long$ASV, 1, 6)
+abund_long$panel <- ifelse(is.na(abund_long$Genus) | abund_long$Genus == "",
+                            sprintf("unclassified (%s)", abund_long$asv_short),
+                            sprintf("%s (%s)", abund_long$Genus, abund_long$asv_short))
 
-responder_data <- abund_long[abund_long$ASV %in% top_asv, ]
-responder_summary <- aggregate(rel_abundance ~ ASV + treatment + Genus, 
-                               data = responder_data, 
-                               FUN = function(x) c(mean = mean(x), 
-                                                  se = sd(x) / sqrt(length(x))))
-responder_summary <- cbind(responder_summary[,1:3], responder_summary[,4])
-colnames(responder_summary)[4:5] <- c("mean", "se")
-responder_summary$label <- ifelse(!is.na(responder_summary$Genus), 
-                                  responder_summary$Genus, 
-                                  responder_summary$ASV)
+resp_summary <- abund_long %>%
+  group_by(ASV, panel, treatment, direction, padj) %>%
+  summarise(mean = mean(rel_abund),
+            se = sd(rel_abund) / sqrt(n()),
+            .groups = "drop")
 
-p_responders <- ggplot(responder_summary, aes(x = treatment, y = mean, fill = treatment)) +
-  geom_col() +
-  geom_errorbar(aes(ymin = pmax(0, mean - se), ymax = mean + se), 
-                width = 0.2) +
-  facet_wrap(~label, scales = "free_y", nrow = 4) +
-  labs(x = "Treatment", y = "Relative Abundance", 
-       title = "Top Dose-Responsive Taxa (Gut)") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+# Use dplyr::summarise explicitly and pull padj per panel directly.
+padj_label <- resp_summary %>%
+  dplyr::select(panel, padj) %>%
+  dplyr::distinct() %>%
+  dplyr::mutate(label = sprintf("padj = %.2e", padj))
 
-ggsave(file.path(OUT, "figure_8_top_responders.pdf"), p_responders, 
+p_resp <- ggplot(resp_summary,
+                 aes(x = treatment, y = mean, color = direction, group = direction)) +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = pmax(0, mean - se), ymax = mean + se), width = 0.15) +
+  geom_line() +
+  geom_text(data = padj_label, aes(label = label),
+            x = 1, y = Inf, hjust = 0, vjust = 1.5,
+            inherit.aes = FALSE, size = 3,
+            color = "black") +
+  facet_wrap(~ panel, scales = "free_y", ncol = 3) +
+  scale_color_manual(values = c("Increases with treatment" = "#4575b4",
+                                 "Decreases with treatment" = "#d73027")) +
+  labs(x = "Treatment", y = "Relative abundance",
+       color = "",
+       title = "Top dose-responsive taxa") +
+  theme_bw() +
+  theme(legend.position = "top",
+        axis.text.x = element_text(angle = 0))
+
+ggsave(file.path(OUT, "figure_8_top_responders.pdf"), p_resp,
        width = 12, height = 10)
 cat("Figure 8 saved\n")
 
-# FIGURE 9: TOP 32 GENERA BOX PLOTS
-cat("Generating Figure 9: Top 32 Genera...\n")
+# Figure 9. Top genera among significant responders.
+cat("Generating Figure 9: Significant Genera by Treatment\n")
 
-top_genera <- aggregate(rel_abundance ~ Genus, 
-                        data = abund_long, 
-                        FUN = mean)
-top_genera <- top_genera[order(top_genera$rel_abundance, decreasing = TRUE), ]
-top_32 <- head(top_genera$Genus, 32)
+sig_genera <- unique(sig_asvs$Genus[!is.na(sig_asvs$Genus) & sig_asvs$Genus != ""])
+cat(sprintf("Found %d unique genera with significant ASVs\n", length(sig_genera)))
 
-genera_data <- abund_long[abund_long$Genus %in% top_32, ]
-genera_data$Genus <- factor(genera_data$Genus, levels = top_32)
+if (length(sig_genera) > 0) {
+  ps_genus <- tax_glom(ps_gut_rel, taxrank = "Genus", NArm = FALSE)
+  genus_long <- psmelt(ps_genus) %>%
+    filter(Genus %in% sig_genera)
 
-p_genera <- ggplot(genera_data, aes(x = treatment, y = rel_abundance, fill = treatment)) +
-  geom_boxplot(alpha = 0.7) +
-  geom_jitter(width = 0.2, alpha = 0.3, size = 1) +
-  facet_wrap(~Genus, scales = "free_y", nrow = 8) +
-  labs(x = "Treatment", y = "Relative Abundance", 
-       title = "Top 32 Genera by Mean Abundance (Gut)") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1),
-        legend.position = "bottom")
+  genus_order <- genus_long %>%
+    group_by(Genus) %>%
+    summarise(m = mean(Abundance), .groups = "drop") %>%
+    arrange(desc(m)) %>%
+    pull(Genus)
+  genus_long$Genus <- factor(genus_long$Genus, levels = genus_order)
+  genus_long$pct <- genus_long$Abundance * 100
 
-ggsave(file.path(OUT, "figure_9_top_32_genera.pdf"), p_genera, 
-       width = 14, height = 16)
-cat("Figure 9 saved\n")
+  p_genus <- ggplot(genus_long,
+                    aes(x = Genus, y = pct, fill = treatment)) +
+    geom_boxplot(outlier.shape = NA, alpha = 0.6, position = position_dodge(0.8)) +
+    geom_jitter(aes(color = treatment), size = 1.2,
+                position = position_jitterdodge(jitter.width = 0.15, dodge.width = 0.8),
+                alpha = 0.6) +
+    scale_fill_manual(values = c("control" = "#bdd7e7", "roundup" = "#2171b5")) +
+    scale_color_manual(values = c("control" = "#08519c", "roundup" = "#08306b")) +
+    labs(x = "Genus", y = "Percent of 16S reads",
+         title = sprintf("Significant responsive genera (%d genera, padj < 0.05)",
+                         length(genus_order))) +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8))
 
-# FIGURE 10: VOLCANO-STYLE PLOT
-cat("Generating Figure 10: Volcano Plot...\n")
+  ggsave(file.path(OUT, "figure_9_significant_genera.pdf"), p_genus,
+         width = max(10, length(genus_order) * 0.4), height = 6)
+  cat("Figure 9 saved\n")
+} else {
+  cat("No significant genera, skipping Figure 9\n")
+}
 
-mean_abund <- aggregate(rel_abundance ~ ASV, 
-                        data = abund_long, 
-                        FUN = mean)
-colnames(mean_abund)[2] <- "mean_abund"
+# Figure 10. Volcano plot.
+cat("Generating Figure 10: Volcano Plot\n")
 
-volcano_data <- merge(fc_data, mean_abund, by = "ASV")
-volcano_data$class <- ifelse(abs(volcano_data$log2fc) > 1,
-                             ifelse(volcano_data$log2fc > 0, "Enriched", "Depleted"),
-                             "NS")
+volc <- res_df %>%
+  mutate(neg_log10_padj = -log10(padj),
+         class = case_when(
+           padj < 0.05 & log2FoldChange >= 1  ~ "Increases with treatment",
+           padj < 0.05 & log2FoldChange <= -1 ~ "Decreases with treatment",
+           TRUE                                ~ "Not significant"
+         ))
 
-p_volcano <- ggplot(volcano_data, aes(x = log2fc, y = mean_abund)) +
-  geom_point(aes(color = class), alpha = 0.6, size = 2) +
-  scale_color_manual(values = c("Enriched" = "blue", "Depleted" = "red", "NS" = "gray")) +
-  geom_vline(xintercept = 0, linetype = "dashed", color = "black", alpha = 0.3) +
-  geom_vline(xintercept = c(-1, 1), linetype = "dotted", color = "gray", alpha = 0.3) +
-  labs(x = "log2(Fold Change: Roundup/Control)", 
-       y = "Mean Relative Abundance",
-       title = "Differential Abundance: Control vs Roundup (Gut)",
-       color = "Classification") +
-  theme_minimal()
+x_max <- max(abs(volc$log2FoldChange[is.finite(volc$log2FoldChange)]), na.rm = TRUE)
+x_lim <- c(-x_max * 1.1, x_max * 1.1)
+y_max <- max(volc$neg_log10_padj[is.finite(volc$neg_log10_padj)], na.rm = TRUE)
+y_lim <- c(0, y_max * 1.1)
 
-ggsave(file.path(OUT, "figure_10_volcano_plot.pdf"), p_volcano, 
+p_volc <- ggplot(volc, aes(x = log2FoldChange, y = neg_log10_padj, color = class)) +
+  geom_vline(xintercept = c(-1, 0, 1), linetype = "dashed", color = "grey50") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "grey50") +
+  geom_point(alpha = 0.6, size = 1.8) +
+  scale_color_manual(values = c("Increases with treatment" = "#4575b4",
+                                 "Decreases with treatment" = "#d73027",
+                                 "Not significant" = "grey60")) +
+  coord_cartesian(xlim = x_lim, ylim = y_lim) +
+  labs(x = expression(log[2]~"fold change (roundup vs control)"),
+       y = expression(-log[10]~"adjusted p-value"),
+       color = "",
+       title = sprintf("Differential abundance: %d significant ASVs (padj < 0.05)",
+                       nrow(sig_asvs)),
+       subtitle = "Thresholds: |log2FC| >= 1, padj < 0.05 (Benjamini-Hochberg)") +
+  theme_bw() +
+  theme(legend.position = "top")
+
+ggsave(file.path(OUT, "figure_10_volcano_plot.pdf"), p_volc,
        width = 10, height = 7)
 cat("Figure 10 saved\n")
 
-cat("\nAll figures generated successfully!\n")
-cat(sprintf("Saved to: %s\n", OUT))
+cat(sprintf("\nDone. Output: %s\n", OUT))
