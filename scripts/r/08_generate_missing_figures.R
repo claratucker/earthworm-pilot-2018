@@ -28,7 +28,6 @@
 suppressMessages({
   library(phyloseq); library(vegan); library(ape)
   library(ggplot2); library(dplyr); library(tidyr); library(DESeq2)
-  library(ggtext)
 })
 
 PROJECT <- path.expand("~/pilot2018")
@@ -165,33 +164,17 @@ build_taxon_fig <- function(ps_in, rank, fig_name, top_n = top_n_taxa) {
     filter(treatment == "roundup") %>%
     summarise(divider = min(idx) - 0.5, .groups = "drop")
 
-  # Build axis labels as inline HTML with a background-color span, so the
-  # label reads as plain black text on a colored highlight, rendered via
-  # ggtext::element_markdown on the axis, rather than a separate box strip
-  # that has to stay aligned to the panel above it.
-  label_lookup <- df_collapsed %>%
-    distinct(Sample, env_treat) %>%
-    mutate(html_label = sprintf(
-      "<span style='background-color:%s;color:%s;padding:1px 3px;border-radius:2px;'>%s</span>",
-      ENV_TREAT_COLORS[as.character(env_treat)],
-      ENV_TREAT_TEXT[as.character(env_treat)],
-      Sample
-    ))
-  label_map <- setNames(label_lookup$html_label, label_lookup$Sample)
-  label_map <- label_map[levels(df_collapsed$Sample)]
-
   p_main <- ggplot(df_collapsed, aes(x = Sample, y = Abundance, fill = taxon_plot)) +
     geom_col(width = 0.85) +
     geom_vline(data = divider_df, aes(xintercept = divider),
                linetype = "dashed", color = "grey40") +
     facet_wrap(~environment, scales = "free_x") +
     scale_fill_manual(values = pal, name = rank) +
-    scale_x_discrete(labels = label_map) +
     labs(x = NULL, y = "Relative Abundance",
          title = sprintf("Taxonomic Composition by Treatment (%s level)",
                          tolower(rank))) +
     theme_bw() +
-    theme(axis.text.x = element_markdown(angle = 45, hjust = 1, size = 7),
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
           legend.text = element_text(size = 7),
           legend.key.size = unit(0.35, "cm"),
           panel.grid.major.x = element_blank())
@@ -231,25 +214,15 @@ build_taxon_fig_averaged <- function(ps_in, rank, fig_name, palette_taxa,
   avg_df$taxon_plot <- factor(avg_df$taxon_plot,
                               levels = c(palette_taxa, "Other (<1% mean abundance)"))
 
-  label_lookup <- avg_df %>%
-    distinct(environment, treatment) %>%
-    mutate(env_treat = paste(environment, treatment, sep = "."),
-           html_label = sprintf(
-             "<span style='background-color:%s;color:%s;padding:1px 4px;border-radius:2px;'>%s</span>",
-             ENV_TREAT_COLORS[env_treat], ENV_TREAT_TEXT[env_treat], treatment
-           ))
-  label_map <- setNames(label_lookup$html_label, as.character(label_lookup$treatment))
-
   p_main <- ggplot(avg_df, aes(x = treatment, y = mean_abundance, fill = taxon_plot)) +
     geom_col(width = 0.6) +
     facet_wrap(~environment) +
     scale_fill_manual(values = palette_colors, name = rank) +
-    scale_x_discrete(labels = label_map) +
-    labs(x = NULL, y = "Mean Relative Abundance",
+    labs(x = "Treatment", y = "Mean Relative Abundance",
          title = sprintf("Treatment-Averaged Composition (%s level)",
                          tolower(rank))) +
     theme_bw() +
-    theme(axis.text.x = element_markdown(size = 8),
+    theme(axis.text.x = element_text(size = 9),
           legend.text = element_text(size = 7),
           legend.key.size = unit(0.35, "cm"))
 
@@ -366,16 +339,8 @@ p_resp_main <- ggplot(resp_summary,
         axis.text.x = element_blank(),
         axis.ticks.x = element_blank())
 
-label_map_resp <- c(
-  "control" = sprintf("<span style='background-color:%s;color:%s;padding:1px 4px;border-radius:2px;'>control</span>",
-                      ENV_TREAT_COLORS["gut.control"], ENV_TREAT_TEXT["gut.control"]),
-  "roundup" = sprintf("<span style='background-color:%s;color:%s;padding:1px 4px;border-radius:2px;'>roundup</span>",
-                      ENV_TREAT_COLORS["gut.roundup"], ENV_TREAT_TEXT["gut.roundup"])
-)
-
 p_resp_main <- p_resp_main +
-  scale_x_discrete(labels = label_map_resp) +
-  theme(axis.text.x = element_markdown(size = 9))
+  theme(axis.text.x = element_text(size = 9))
 
 ggsave(file.path(OUT, "figure_6_top_responders.pdf"), p_resp_main,
        width = 12, height = 10)
