@@ -77,3 +77,48 @@ Biological conclusions about treatment (no effect) were unchanged by the fix. RÂ
 Also added PERMDISP (Anderson 2006) test for within-group dispersion by environment: F=0.0002, p=0.988, no significant difference in dispersion between Gut and Soil. Notable since soil taxa composition showed visible heterogeneity (two of six soil samples dominated by Aliivibrio, others not); PERMDISP did not detect this at n=3 per soil treatment group, likely underpowered for this pattern at this sample size.
 
 All superseded PDFs, CSVs, and figure captions regenerated with corrected values. RESULTS.md updated with a methods-correction note for transparency.
+
+2026-06-19: Differential Abundance Analysis Added (New, Gut Only)
+
+Context: prior pipeline (RESULTS.md, all entries above) tested community-level effects only (PERMANOVA, Mann-Whitney U on per-sample summary statistics). No individual-ASV differential abundance test had been run on this dataset before this entry.
+
+Analysis: DESeq2 (Love et al. 2014) on gut samples, Roundup vs Control (n=8/group). Wald test, Benjamini-Hochberg FDR correction. Restricted to gut: at soil's n=3/group, DESeq2 dispersion estimation is not reliable (a single outlier sample can dominate the estimated variance for any taxon), consistent with the existing pilot design rationale that soil is descriptive-only.
+
+Results: 33 significant ASVs at padj < 0.05 (10 enriched, 23 depleted under Roundup). This is an individual-taxon-level result and does not contradict the community-level PERMANOVA finding of no significant gut treatment effect (RÂ²=0.0724, p=0.269): PERMANOVA is an omnibus test of overall composition, DESeq2 tests each taxon separately, so a non-significant omnibus result can coexist with a subset of significant individual taxa.
+
+EPSPS cross-check: the 33 significant ASVs were not stratified by EPSPS sensitivity class (Class I vs II); taxon-level shifts under Roundup are not organized around glyphosate target-site sensitivity, consistent with the existing EPSPS Mann-Whitney U finding of no class-level shift.
+
+Output: deseq2_gut_roundup_vs_control.csv (full results, all tested ASVs, not just significant ones).
+
+Figures generated (new):
+  Figure 6: top 6 enriched / top 6 depleted significant ASVs, point + SE by treatment, faceted per taxon.
+  Figure 7: box plots of the 17 genera containing at least one significant ASV. Points beyond 1.5x IQR (Tukey 1977) excluded from y-axis scaling only, not from the data, for panel visibility; noted in caption.
+  Figure 8: volcano plot, all tested gut ASVs, |log2FC| >= 1 and padj < 0.05 thresholds (Love et al. 2014; Benjamini and Hochberg 1995).
+
+Script: scripts/r/08_generate_missing_figures.R (also generates Figures 2, 2b, 2c, 2d, 3).
+
+2026-06-19: Figure Renumbering and Repo Cleanup
+
+Figures renumbered to match the 2026 dose-response repo's numbering where the analysis is equivalent, for direct side-by-side comparison:
+  Figure 1: denoising stats (unchanged)
+  Figure 2 / 2b: per-sample taxonomic composition, genus / family level (new, replaces old figure_5_taxa_composition.pdf)
+  Figure 2c / 2d: treatment-averaged composition, genus / family level (new addition; no per-segment error bars, see methods note below)
+  Figure 3: rarefaction curves (new, generated via vegan::rarecurve, replaces placeholder)
+  Figure 4: alpha diversity (unchanged, pre-existing)
+  Figure 5a / 5b / 5c: beta diversity, all-samples / gut / soil (renamed from original QIIME2-export numbering, figure_1_beta_diversity_gut.pdf -> 5b, figure_2_beta_diversity_soil.pdf -> 5c, figure_6_nmds_all_samples_gut_vs_soil.pdf -> 5a)
+  Figure 6: top responders (new, DESeq2; old number figure_8_top_responders.pdf removed)
+  Figure 7: significant genera box plots (new, DESeq2; old figure_9_significant_genera.pdf and figure_9_top_32_genera.pdf removed, the latter was unfiltered and included many non-significant low-abundance taxa)
+  Figure 8: volcano plot (new, DESeq2; old figure_10_volcano_plot.pdf removed)
+  Figure 9: EPSPS by treatment (renamed from figure_3_epsps_by_treatment.pdf to avoid collision with the new Figure 3 rarefaction)
+
+Methods note added (composition figures, 2c/2d): no error bars are shown on stacked treatment-averaged bars. A stacked bar segment's vertical position is the cumulative sum of every segment below it, so a per-segment error bar would represent the combined variance of all underlying taxa, not that taxon alone (Munzner 2014). Per-taxon variance is shown separately in Figure 6.
+
+Composition figure color scheme: "Other" category fixed to a single grey (consistent between genus and family level) after an early version showed the Other category splitting into hundreds of individual near-invisible grey hairline segments; root cause was tax_glom + top-N filtering leaving each rare taxon as its own factor level sharing a color, rather than actually summing rare taxa into one row. Fixed by explicitly summing all non-top-N taxa into a single Other row per sample before plotting.
+
+Axis label color-coding (sample/treatment names by environment-treatment group) was attempted via colored highlight boxes under the text (first as a separately stacked grid viewport strip, then as inline ggtext::element_markdown highlight spans). Both approaches were reverted: the grid-viewport version risked panel misalignment, and the ggtext version caused axis labels to disappear entirely on render. Final state: plain black axis text, no color-coding on labels. Figure 7's box plot fill colors do still use the gut Control/Roundup green palette (in place of an earlier default blue), since that is a fill aesthetic on the plot itself rather than axis-label text and was not affected by the labeling issue.
+
+Stale/superseded files removed from results/figures/: figure_5_taxa_composition.pdf, figure_8_top_responders.pdf, figure_9_significant_genera.pdf, figure_9_top_32_genera.pdf, figure_10_volcano_plot.pdf.
+
+2026-06-19: Results Document Reconciliation
+
+A separate results summary document (outside this repo, Google Doc) had drifted from RESULTS.md on several statistics (PERMANOVA environment p-value, 0.0001 vs the correct 0.003; alpha diversity Shannon environment p-value, 0.0402 vs the correct 0.016; EPSPS gut Class I p-value, 0.7984 vs the correct 0.693) and used a different, smaller literature citation list. Root cause: that document was drafted before RESULTS.md's PERMANOVA correction (see 2026-06-17 entry above) was available, and was never reconciled against RESULTS.md afterward. Reconciled by rebuilding the document with RESULTS.md as the sole source for all pre-existing statistics, and the new DESeq2 section added on top, clearly marked as new analysis not present in RESULTS.md. RESULTS.md itself was not changed; it was already correct.
