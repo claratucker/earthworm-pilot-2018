@@ -365,3 +365,56 @@ ggsave(file.path(OUT, "figure_8_volcano_plot.pdf"), p_volc,
 cat("Figure 8 saved\n")
 
 cat(sprintf("\nDone. Output: %s\n", OUT))
+
+# Figure 2c / 2d. Treatment-averaged versions of the genus and family
+# composition plots. A single stacked bar cannot carry a per-segment error
+# bar, since each segment's vertical position is the cumulative sum of all
+# segments below it, so a bar's "error" would reflect the combined variance
+# of every taxon stacked underneath rather than that taxon alone (Munzner
+# 2014, Visualization Analysis and Design). Per-taxon variance is shown
+# separately in Figure 6 (point + SE by treatment for individual taxa).
+# These averaged bars use the same Tableau20 palette and grey "Other" as
+# Figures 2 and 2b for visual consistency.
+build_taxon_fig_averaged <- function(ps_in, rank, fig_name, palette_taxa,
+                                     palette_colors, top_n = top_n_taxa) {
+  ps_rel <- transform_sample_counts(ps_in, function(x) x / sum(x))
+  ps_glom <- tax_glom(ps_rel, taxrank = rank, NArm = FALSE)
+  df <- psmelt(ps_glom)
+
+  df$taxon_plot <- ifelse(df[[rank]] %in% palette_taxa,
+                          as.character(df[[rank]]),
+                          "Other (<1% mean abundance)")
+  df$taxon_plot <- factor(df$taxon_plot,
+                          levels = c(palette_taxa, "Other (<1% mean abundance)"))
+  df$treatment <- factor(df$treatment, levels = c("control", "roundup"))
+
+  avg_df <- df %>%
+    group_by(environment, treatment, taxon_plot) %>%
+    summarise(mean_abundance = mean(Abundance), .groups = "drop")
+
+  p <- ggplot(avg_df, aes(x = treatment, y = mean_abundance, fill = taxon_plot)) +
+    geom_col(width = 0.6) +
+    facet_wrap(~environment) +
+    scale_fill_manual(values = palette_colors, name = rank) +
+    labs(x = "Treatment", y = "Mean Relative Abundance",
+         title = sprintf("Treatment-Averaged Composition (%s level)",
+                         tolower(rank)),
+         subtitle = "Replicates averaged within treatment; per-taxon variance shown in Figure 6, not here (see methods note)") +
+    theme_bw() +
+    theme(legend.text = element_text(size = 7),
+          legend.key.size = unit(0.35, "cm"),
+          plot.subtitle = element_text(size = 8, color = "grey40"))
+
+  ggsave(file.path(OUT, fig_name), p, width = 9, height = 6)
+  invisible(p)
+}
+
+cat("Generating Figure 2c: Genus-Level Composition, Treatment-Averaged\n")
+build_taxon_fig_averaged(ps, "Genus", "figure_2c_taxa_composition_genus_averaged.pdf",
+                         genus_fig$top_taxa, genus_fig$palette)
+cat("Figure 2c saved\n")
+
+cat("Generating Figure 2d: Family-Level Composition, Treatment-Averaged\n")
+build_taxon_fig_averaged(ps, "Family", "figure_2d_taxa_composition_family_averaged.pdf",
+                         family_fig$top_taxa, family_fig$palette)
+cat("Figure 2d saved\n")
