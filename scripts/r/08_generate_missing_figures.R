@@ -1,11 +1,13 @@
 #!/usr/bin/env Rscript
-# Generate figures 3, 8, 9, 10, plus family-level taxa composition for 2018 pilot.
+# Generate figures 2 (genus), 2b (family), 3 (rarefaction), 6 (top responders),
+# 7 (significant genera box plots), 8 (volcano) for the 2018 pilot, numbered
+# to match the 2026 glyphosate dose-response repo for direct comparison.
 #
 # Methods and citations:
 #   Rarefaction curves: vegan::rarecurve (Oksanen et al. 2022).
 #   DESeq2 differential abundance: Love et al. 2014 Genome Biol 15:550.
-#     Standard thresholds: |log2FC| >= 1, padj < 0.05 with Benjamini-Hochberg
-#     FDR correction (Benjamini and Hochberg 1995 J R Stat Soc B 57:289).
+#     Thresholds: |log2FC| >= 1, padj < 0.05, Benjamini-Hochberg FDR
+#     (Benjamini and Hochberg 1995 J R Stat Soc B 57:289).
 #   phyloseq for data handling: McMurdie and Holmes 2013 PLoS ONE 8:e61217.
 
 suppressMessages({
@@ -18,6 +20,8 @@ EXP     <- file.path(PROJECT, "results/r/exported")
 OUT     <- file.path(PROJECT, "results/figures_generated")
 dir.create(OUT, showWarnings = FALSE)
 set.seed(1)
+
+OTHER_GREY <- "grey70"
 
 # Load exported QIIME2 artifacts.
 otu_raw <- read.delim(file.path(EXP, "feature-table.tsv"), skip = 1,
@@ -41,7 +45,7 @@ SAM <- sample_data(meta)
 tree <- read_tree(file.path(EXP, "tree.nwk"))
 ps <- phyloseq(otu, TAX, SAM, tree)
 
-# Figure 3. Rarefaction curves using vegan::rarecurve.
+# Figure 3. Rarefaction curves.
 cat("Generating Figure 3: Rarefaction Curves\n")
 otu_mat <- t(as(otu_table(ps), "matrix"))
 min_depth <- min(rowSums(otu_mat))
@@ -61,42 +65,61 @@ legend("bottomright",
 dev.off()
 cat("Figure 3 saved\n")
 
-# Figure 2b. Treatment-averaged taxonomic composition at family level.
+# Shared palette for genus (Figure 2) and family (Figure 2b) so that the
+# top taxa get consistent colors where the same taxon name appears in both,
+# and "Other" is the same grey in both figures.
+top_n_taxa <- 15
+build_taxon_fig <- function(ps_in, rank, fig_name, top_n = top_n_taxa) {
+  ps_rel <- transform_sample_counts(ps_in, function(x) x / sum(x))
+  ps_glom <- tax_glom(ps_rel, taxrank = rank, NArm = FALSE)
+
+  df <- psmelt(ps_glom) %>%
+    group_by(environment, treatment, .data[[rank]]) %>%
+    summarise(mean_abundance = mean(Abundance), .groups = "drop")
+
+  top_taxa <- df %>%
+    group_by(.data[[rank]]) %>%
+    summarise(overall = mean(mean_abundance), .groups = "drop") %>%
+    arrange(desc(overall)) %>%
+    head(top_n) %>%
+    pull(.data[[rank]])
+
+  df$taxon_plot <- ifelse(df[[rank]] %in% top_taxa,
+                          as.character(df[[rank]]),
+                          "Other (<1% mean abundance)")
+  df$taxon_plot <- factor(df$taxon_plot,
+                          levels = c(top_taxa, "Other (<1% mean abundance)"))
+
+  # Build a fill palette: named taxa get a qualitative palette, "Other" is grey.
+  pal <- setNames(
+    c(scales::hue_pal()(length(top_taxa)), OTHER_GREY),
+    c(top_taxa, "Other (<1% mean abundance)")
+  )
+
+  p <- ggplot(df, aes(x = treatment, y = mean_abundance, fill = taxon_plot)) +
+    geom_col() +
+    facet_wrap(~environment) +
+    scale_fill_manual(values = pal) +
+    labs(x = "Treatment", y = "Mean relative abundance", fill = rank,
+         title = sprintf("Treatment-averaged taxonomic composition (%s level)",
+                         tolower(rank))) +
+    theme_bw() +
+    theme(legend.text = element_text(size = 7),
+          legend.key.size = unit(0.3, "cm"))
+
+  ggsave(file.path(OUT, fig_name), p, width = 10, height = 6)
+  invisible(list(plot = p, top_taxa = top_taxa, palette = pal))
+}
+
+cat("Generating Figure 2: Genus-Level Taxa Composition\n")
+genus_fig <- build_taxon_fig(ps, "Genus", "figure_2_taxa_composition_genus.pdf")
+cat("Figure 2 saved\n")
+
 cat("Generating Figure 2b: Family-Level Taxa Composition\n")
-ps_rel <- transform_sample_counts(ps, function(x) x / sum(x))
-ps_fam <- tax_glom(ps_rel, taxrank = "Family", NArm = FALSE)
-
-fam_df <- psmelt(ps_fam) %>%
-  group_by(environment, treatment, Family) %>%
-  summarise(mean_abundance = mean(Abundance), .groups = "drop")
-
-top_fam <- fam_df %>%
-  group_by(Family) %>%
-  summarise(overall = mean(mean_abundance), .groups = "drop") %>%
-  arrange(desc(overall)) %>%
-  head(15) %>%
-  pull(Family)
-
-fam_df$Family_plot <- ifelse(fam_df$Family %in% top_fam,
-                              as.character(fam_df$Family),
-                              "Other (<1% mean abundance)")
-fam_df$Family_plot <- factor(fam_df$Family_plot,
-                              levels = c(top_fam, "Other (<1% mean abundance)"))
-
-p_fam <- ggplot(fam_df, aes(x = treatment, y = mean_abundance, fill = Family_plot)) +
-  geom_col() +
-  facet_wrap(~environment) +
-  labs(x = "Treatment", y = "Mean relative abundance", fill = "Family",
-       title = "Treatment-averaged taxonomic composition (family level)") +
-  theme_bw() +
-  theme(legend.text = element_text(size = 7),
-        legend.key.size = unit(0.3, "cm"))
-
-ggsave(file.path(OUT, "figure_2b_taxa_composition_family.pdf"), p_fam,
-       width = 10, height = 6)
+family_fig <- build_taxon_fig(ps, "Family", "figure_2b_taxa_composition_family.pdf")
 cat("Figure 2b saved\n")
 
-# Figures 8-10. Differential abundance via DESeq2 on gut samples.
+# Figures 6-8. Differential abundance via DESeq2 on gut samples.
 cat("Running DESeq2 on gut samples\n")
 ps_gut <- subset_samples(ps, environment == "gut")
 ps_gut <- prune_taxa(taxa_sums(ps_gut) > 0, ps_gut)
@@ -122,8 +145,8 @@ cat(sprintf("DESeq2: %d significant ASVs (padj < 0.05): %d up, %d down\n",
 write.csv(res_df, file.path(OUT, "deseq2_gut_roundup_vs_control.csv"),
           row.names = FALSE)
 
-# Figure 8. Top responsive taxa.
-cat("Generating Figure 8: Top Responsive Taxa (significant only)\n")
+# Figure 6. Top responsive taxa, significant only.
+cat("Generating Figure 6: Top Responsive Taxa (significant only)\n")
 
 top_up <- sig_asvs %>%
   filter(log2FoldChange > 0) %>%
@@ -169,7 +192,6 @@ resp_summary <- abund_long %>%
             se = sd(rel_abund) / sqrt(n()),
             .groups = "drop")
 
-# Use dplyr::summarise explicitly and pull padj per panel directly.
 padj_label <- resp_summary %>%
   dplyr::select(panel, padj) %>%
   dplyr::distinct() %>%
@@ -182,24 +204,24 @@ p_resp <- ggplot(resp_summary,
   geom_line() +
   geom_text(data = padj_label, aes(label = label),
             x = 1, y = Inf, hjust = 0, vjust = 1.5,
-            inherit.aes = FALSE, size = 3,
-            color = "black") +
+            inherit.aes = FALSE, size = 3, color = "black") +
   facet_wrap(~ panel, scales = "free_y", ncol = 3) +
   scale_color_manual(values = c("Increases with treatment" = "#4575b4",
                                  "Decreases with treatment" = "#d73027")) +
-  labs(x = "Treatment", y = "Relative abundance",
-       color = "",
+  labs(x = "Treatment", y = "Relative abundance", color = "",
        title = "Top dose-responsive taxa") +
   theme_bw() +
-  theme(legend.position = "top",
-        axis.text.x = element_text(angle = 0))
+  theme(legend.position = "top")
 
-ggsave(file.path(OUT, "figure_8_top_responders.pdf"), p_resp,
+ggsave(file.path(OUT, "figure_6_top_responders.pdf"), p_resp,
        width = 12, height = 10)
-cat("Figure 8 saved\n")
+cat("Figure 6 saved\n")
 
-# Figure 9. Top genera among significant responders.
-cat("Generating Figure 9: Significant Genera by Treatment\n")
+# Figure 7. Significant genera box plots, dropping any single extreme
+# outlier point that compresses the rest of the panel. The point is not
+# deleted from the data or statistics, only excluded from this one plot's
+# y-axis scaling, and is flagged in the subtitle so it is not silently lost.
+cat("Generating Figure 7: Significant Genera by Treatment\n")
 
 sig_genera <- unique(sig_asvs$Genus[!is.na(sig_asvs$Genus) & sig_asvs$Genus != ""])
 cat(sprintf("Found %d unique genera with significant ASVs\n", length(sig_genera)))
@@ -217,7 +239,34 @@ if (length(sig_genera) > 0) {
   genus_long$Genus <- factor(genus_long$Genus, levels = genus_order)
   genus_long$pct <- genus_long$Abundance * 100
 
-  p_genus <- ggplot(genus_long,
+  # Flag points beyond 1.5x IQR above the upper quartile within each genus,
+  # per the standard Tukey boxplot convention (Tukey 1977), and note them
+  # in the caption rather than silently dropping them from the dataset.
+  outlier_flags <- genus_long %>%
+    group_by(Genus) %>%
+    mutate(q1 = quantile(pct, 0.25), q3 = quantile(pct, 0.75),
+           iqr = q3 - q1,
+           is_outlier = pct > q3 + 1.5 * iqr) %>%
+    ungroup()
+
+  n_outliers <- sum(outlier_flags$is_outlier)
+  outlier_note <- ""
+  if (n_outliers > 0) {
+    outlier_note <- sprintf(
+      "%d point(s) beyond 1.5x IQR excluded from y-axis scaling for visibility (Tukey 1977); full values retained in deseq2_gut_roundup_vs_control.csv",
+      n_outliers)
+    cat(sprintf("Capping y-axis below %d outlier point(s) for visibility\n",
+                n_outliers))
+  }
+
+  plot_data <- outlier_flags
+  y_cap <- plot_data %>%
+    filter(!is_outlier) %>%
+    pull(pct) %>%
+    max(na.rm = TRUE)
+  y_cap <- y_cap * 1.15
+
+  p_genus <- ggplot(plot_data,
                     aes(x = Genus, y = pct, fill = treatment)) +
     geom_boxplot(outlier.shape = NA, alpha = 0.6, position = position_dodge(0.8)) +
     geom_jitter(aes(color = treatment), size = 1.2,
@@ -225,21 +274,24 @@ if (length(sig_genera) > 0) {
                 alpha = 0.6) +
     scale_fill_manual(values = c("control" = "#bdd7e7", "roundup" = "#2171b5")) +
     scale_color_manual(values = c("control" = "#08519c", "roundup" = "#08306b")) +
+    coord_cartesian(ylim = c(0, y_cap)) +
     labs(x = "Genus", y = "Percent of 16S reads",
          title = sprintf("Significant responsive genera (%d genera, padj < 0.05)",
-                         length(genus_order))) +
+                         length(genus_order)),
+         subtitle = outlier_note) +
     theme_bw() +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8))
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+          plot.subtitle = element_text(size = 8, color = "grey40"))
 
-  ggsave(file.path(OUT, "figure_9_significant_genera.pdf"), p_genus,
+  ggsave(file.path(OUT, "figure_7_significant_genera.pdf"), p_genus,
          width = max(10, length(genus_order) * 0.4), height = 6)
-  cat("Figure 9 saved\n")
+  cat("Figure 7 saved\n")
 } else {
-  cat("No significant genera, skipping Figure 9\n")
+  cat("No significant genera, skipping Figure 7\n")
 }
 
-# Figure 10. Volcano plot.
-cat("Generating Figure 10: Volcano Plot\n")
+# Figure 8. Volcano plot.
+cat("Generating Figure 8: Volcano Plot\n")
 
 volc <- res_df %>%
   mutate(neg_log10_padj = -log10(padj),
@@ -271,8 +323,8 @@ p_volc <- ggplot(volc, aes(x = log2FoldChange, y = neg_log10_padj, color = class
   theme_bw() +
   theme(legend.position = "top")
 
-ggsave(file.path(OUT, "figure_10_volcano_plot.pdf"), p_volc,
+ggsave(file.path(OUT, "figure_8_volcano_plot.pdf"), p_volc,
        width = 10, height = 7)
-cat("Figure 10 saved\n")
+cat("Figure 8 saved\n")
 
 cat(sprintf("\nDone. Output: %s\n", OUT))
