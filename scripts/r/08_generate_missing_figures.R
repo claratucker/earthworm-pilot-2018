@@ -9,6 +9,11 @@
 #     Thresholds: |log2FC| >= 1, padj < 0.05, Benjamini-Hochberg FDR
 #     (Benjamini and Hochberg 1995 J R Stat Soc B 57:289).
 #   phyloseq for data handling: McMurdie and Holmes 2013 PLoS ONE 8:e61217.
+#   Taxonomic composition palette: saturated qualitative colors for named
+#     taxa (Tableau 20 categorical palette, Tableau Software 2016) with a
+#     single neutral grey reserved for the pooled "Other" category, rather
+#     than a continuous pastel rainbow, to keep individual taxa visually
+#     distinct at a glance.
 
 suppressMessages({
   library(phyloseq); library(vegan); library(ape)
@@ -22,6 +27,16 @@ dir.create(OUT, showWarnings = FALSE)
 set.seed(1)
 
 OTHER_GREY <- "grey70"
+
+# Tableau 20 categorical palette (Tableau Software 2016), used here as a
+# fixed, saturated qualitative palette so adjacent bars are distinguishable
+# without relying on a continuous color scale.
+TABLEAU20 <- c(
+  "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
+  "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf",
+  "#aec7e8", "#ffbb78", "#98df8a", "#ff9896", "#c5b0d5",
+  "#c49c94", "#f7b6d2", "#c7c7c7", "#dbdb8d", "#9edae5"
+)
 
 # Load exported QIIME2 artifacts.
 otu_raw <- read.delim(file.path(EXP, "feature-table.tsv"), skip = 1,
@@ -65,21 +80,21 @@ legend("bottomright",
 dev.off()
 cat("Figure 3 saved\n")
 
-# Shared palette for genus (Figure 2) and family (Figure 2b) so that the
-# top taxa get consistent colors where the same taxon name appears in both,
-# and "Other" is the same grey in both figures.
-top_n_taxa <- 15
+# Shared helper for genus (Figure 2) and family (Figure 2b) composition
+# figures, using per-sample stacked bars (matching the reference style)
+# rather than treatment-averaged bars, with a fixed saturated palette and
+# a single grey reserved for "Other".
+top_n_taxa <- 20
 build_taxon_fig <- function(ps_in, rank, fig_name, top_n = top_n_taxa) {
   ps_rel <- transform_sample_counts(ps_in, function(x) x / sum(x))
   ps_glom <- tax_glom(ps_rel, taxrank = rank, NArm = FALSE)
 
-  df <- psmelt(ps_glom) %>%
-    group_by(environment, treatment, .data[[rank]]) %>%
-    summarise(mean_abundance = mean(Abundance), .groups = "drop")
+  df <- psmelt(ps_glom)
 
+  # Identify top taxa by overall mean relative abundance across all samples.
   top_taxa <- df %>%
     group_by(.data[[rank]]) %>%
-    summarise(overall = mean(mean_abundance), .groups = "drop") %>%
+    summarise(overall = mean(Abundance), .groups = "drop") %>%
     arrange(desc(overall)) %>%
     head(top_n) %>%
     pull(.data[[rank]])
@@ -90,24 +105,49 @@ build_taxon_fig <- function(ps_in, rank, fig_name, top_n = top_n_taxa) {
   df$taxon_plot <- factor(df$taxon_plot,
                           levels = c(top_taxa, "Other (<1% mean abundance)"))
 
-  # Build a fill palette: named taxa get a qualitative palette, "Other" is grey.
-  pal <- setNames(
-    c(scales::hue_pal()(length(top_taxa)), OTHER_GREY),
-    c(top_taxa, "Other (<1% mean abundance)")
-  )
+  n_named <- length(top_taxa)
+  pal_named <- TABLEAU20[seq_len(min(n_named, length(TABLEAU20)))]
+  if (n_named > length(TABLEAU20)) {
+    pal_named <- c(pal_named,
+                   scales::hue_pal()(n_named - length(TABLEAU20)))
+  }
+  pal <- setNames(c(pal_named, OTHER_GREY),
+                  c(top_taxa, "Other (<1% mean abundance)"))
 
-  p <- ggplot(df, aes(x = treatment, y = mean_abundance, fill = taxon_plot)) +
-    geom_col() +
-    facet_wrap(~environment) +
-    scale_fill_manual(values = pal) +
-    labs(x = "Treatment", y = "Mean relative abundance", fill = rank,
-         title = sprintf("Treatment-averaged taxonomic composition (%s level)",
+  # Order samples within each environment by treatment, mirroring the
+  # reference figure's per-sample bar layout with a dashed divider between
+  # treatment groups.
+  df$treatment <- factor(df$treatment, levels = c("control", "roundup"))
+  sample_order <- df %>%
+    distinct(Sample, environment, treatment) %>%
+    arrange(environment, treatment, Sample) %>%
+    pull(Sample)
+  df$Sample <- factor(df$Sample, levels = sample_order)
+
+  divider_df <- df %>%
+    distinct(Sample, environment, treatment) %>%
+    arrange(environment, treatment, Sample) %>%
+    group_by(environment) %>%
+    mutate(idx = row_number()) %>%
+    filter(treatment == "roundup") %>%
+    summarise(divider = min(idx) - 0.5, .groups = "drop")
+
+  p <- ggplot(df, aes(x = Sample, y = Abundance, fill = taxon_plot)) +
+    geom_col(width = 0.85) +
+    geom_vline(data = divider_df, aes(xintercept = divider),
+               linetype = "dashed", color = "grey40") +
+    facet_wrap(~environment, scales = "free_x") +
+    scale_fill_manual(values = pal, name = rank) +
+    labs(x = NULL, y = "Relative Abundance",
+         title = sprintf("Taxonomic Composition by Treatment (%s level)",
                          tolower(rank))) +
     theme_bw() +
-    theme(legend.text = element_text(size = 7),
-          legend.key.size = unit(0.3, "cm"))
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
+          legend.text = element_text(size = 7),
+          legend.key.size = unit(0.35, "cm"),
+          panel.grid.major.x = element_blank())
 
-  ggsave(file.path(OUT, fig_name), p, width = 10, height = 6)
+  ggsave(file.path(OUT, fig_name), p, width = 12, height = 6)
   invisible(list(plot = p, top_taxa = top_taxa, palette = pal))
 }
 
@@ -217,10 +257,10 @@ ggsave(file.path(OUT, "figure_6_top_responders.pdf"), p_resp,
        width = 12, height = 10)
 cat("Figure 6 saved\n")
 
-# Figure 7. Significant genera box plots, dropping any single extreme
-# outlier point that compresses the rest of the panel. The point is not
-# deleted from the data or statistics, only excluded from this one plot's
-# y-axis scaling, and is flagged in the subtitle so it is not silently lost.
+# Figure 7. Significant genera box plots, capping the y-axis below any
+# point beyond 1.5x IQR (Tukey 1977) for visibility. Data are not removed,
+# only excluded from this plot's axis scaling, and the exclusion is noted
+# in the subtitle.
 cat("Generating Figure 7: Significant Genera by Treatment\n")
 
 sig_genera <- unique(sig_asvs$Genus[!is.na(sig_asvs$Genus) & sig_asvs$Genus != ""])
@@ -239,9 +279,6 @@ if (length(sig_genera) > 0) {
   genus_long$Genus <- factor(genus_long$Genus, levels = genus_order)
   genus_long$pct <- genus_long$Abundance * 100
 
-  # Flag points beyond 1.5x IQR above the upper quartile within each genus,
-  # per the standard Tukey boxplot convention (Tukey 1977), and note them
-  # in the caption rather than silently dropping them from the dataset.
   outlier_flags <- genus_long %>%
     group_by(Genus) %>%
     mutate(q1 = quantile(pct, 0.25), q3 = quantile(pct, 0.75),
