@@ -28,7 +28,7 @@
 suppressMessages({
   library(phyloseq); library(vegan); library(ape)
   library(ggplot2); library(dplyr); library(tidyr); library(DESeq2)
-  library(grid); library(gtable)
+  library(ggtext)
 })
 
 PROJECT <- path.expand("~/pilot2018")
@@ -61,55 +61,6 @@ TABLEAU20 <- c(
   "#aec7e8", "#ffbb78", "#98df8a", "#ff9896", "#c5b0d5",
   "#c49c94", "#f7b6d2", "#c7c7c7", "#dbdb8d", "#9edae5"
 )
-
-# Helper: append a row of colored label boxes under a discrete x-axis.
-# Builds the boxes as a second ggplot with the same x scale/order as the
-# main plot, then stacks the two with patchwork-free base grid so the
-# label boxes sit directly under the axis text as a strip, with text in
-# the box rather than colored axis text.
-add_label_box_strip <- function(main_plot, axis_df, group_colors, text_colors,
-                                box_height_ratio = 0.06) {
-  # axis_df needs columns: x (factor, same levels/order as main plot's
-  # x axis), group (names matching group_colors/text_colors).
-  axis_df$group <- factor(axis_df$group, levels = names(group_colors))
-
-  strip <- ggplot(axis_df, aes(x = x, y = 1, fill = group)) +
-    geom_tile(height = 1, width = 0.95) +
-    geom_text(aes(label = x, color = group), size = 2.3, fontface = "bold") +
-    scale_fill_manual(values = group_colors, guide = "none") +
-    scale_color_manual(values = text_colors, guide = "none") +
-    theme_void() +
-    theme(plot.margin = margin(0, 5.5, 0, 5.5))
-
-  main_plot <- main_plot +
-    theme(axis.text.x = element_blank(),
-          axis.ticks.x = element_blank(),
-          axis.title.x = element_blank())
-
-  list(main = main_plot, strip = strip)
-}
-
-# Helper: combine a main plot and its label-box strip into one patchwork-
-# style stacked grob using gridExtra, so the figure renders as a single
-# PDF page with the strip directly beneath the panel(s).
-stack_with_strip <- function(main_plot, strip_plot, file_path, width, height,
-                             strip_height_in = 0.35) {
-  g_main <- ggplotGrob(main_plot)
-  g_strip <- ggplotGrob(strip_plot)
-  pdf(file_path, width = width, height = height)
-  grid.newpage()
-  layout <- grid.layout(nrow = 2, ncol = 1,
-                        heights = unit(c(height - strip_height_in, strip_height_in),
-                                      "in"))
-  pushViewport(viewport(layout = layout))
-  pushViewport(viewport(layout.pos.row = 1, layout.pos.col = 1))
-  grid.draw(g_main)
-  popViewport()
-  pushViewport(viewport(layout.pos.row = 2, layout.pos.col = 1))
-  grid.draw(g_strip)
-  popViewport()
-  dev.off()
-}
 
 # Load exported QIIME2 artifacts.
 otu_raw <- read.delim(file.path(EXP, "feature-table.tsv"), skip = 1,
@@ -175,8 +126,18 @@ build_taxon_fig <- function(ps_in, rank, fig_name, top_n = top_n_taxa) {
   df$taxon_plot <- ifelse(df[[rank]] %in% top_taxa,
                           as.character(df[[rank]]),
                           "Other (<1% mean abundance)")
-  df$taxon_plot <- factor(df$taxon_plot,
-                          levels = c(top_taxa, "Other (<1% mean abundance)"))
+
+  # Collapse all non-top taxa into one actual summed row per sample,
+  # rather than leaving each rare genus as its own factor level that
+  # happens to share a color. Without this collapse, every rare ASV-level
+  # taxon still gets its own thin segment in the same grey, which renders
+  # as hundreds of hairlines instead of one solid "Other" block.
+  df_collapsed <- df %>%
+    group_by(Sample, environment, treatment, taxon_plot) %>%
+    summarise(Abundance = sum(Abundance), .groups = "drop")
+
+  df_collapsed$taxon_plot <- factor(df_collapsed$taxon_plot,
+                                    levels = c(top_taxa, "Other (<1% mean abundance)"))
 
   n_named <- length(top_taxa)
   pal_named <- TABLEAU20[seq_len(min(n_named, length(TABLEAU20)))]
@@ -187,16 +148,16 @@ build_taxon_fig <- function(ps_in, rank, fig_name, top_n = top_n_taxa) {
   pal <- setNames(c(pal_named, OTHER_GREY),
                   c(top_taxa, "Other (<1% mean abundance)"))
 
-  df$treatment <- factor(df$treatment, levels = c("control", "roundup"))
-  df$env_treat <- paste(df$environment, df$treatment, sep = ".")
+  df_collapsed$treatment <- factor(df_collapsed$treatment, levels = c("control", "roundup"))
+  df_collapsed$env_treat <- paste(df_collapsed$environment, df_collapsed$treatment, sep = ".")
 
-  sample_order <- df %>%
+  sample_order <- df_collapsed %>%
     distinct(Sample, environment, treatment, env_treat) %>%
     arrange(environment, treatment, Sample) %>%
     pull(Sample)
-  df$Sample <- factor(df$Sample, levels = sample_order)
+  df_collapsed$Sample <- factor(df_collapsed$Sample, levels = sample_order)
 
-  divider_df <- df %>%
+  divider_df <- df_collapsed %>%
     distinct(Sample, environment, treatment) %>%
     arrange(environment, treatment, Sample) %>%
     group_by(environment) %>%
@@ -204,44 +165,38 @@ build_taxon_fig <- function(ps_in, rank, fig_name, top_n = top_n_taxa) {
     filter(treatment == "roundup") %>%
     summarise(divider = min(idx) - 0.5, .groups = "drop")
 
-  p_main <- ggplot(df, aes(x = Sample, y = Abundance, fill = taxon_plot)) +
+  # Build axis labels as inline HTML with a background-color span, so the
+  # label reads as plain black text on a colored highlight, rendered via
+  # ggtext::element_markdown on the axis, rather than a separate box strip
+  # that has to stay aligned to the panel above it.
+  label_lookup <- df_collapsed %>%
+    distinct(Sample, env_treat) %>%
+    mutate(html_label = sprintf(
+      "<span style='background-color:%s;color:%s;padding:1px 3px;border-radius:2px;'>%s</span>",
+      ENV_TREAT_COLORS[as.character(env_treat)],
+      ENV_TREAT_TEXT[as.character(env_treat)],
+      Sample
+    ))
+  label_map <- setNames(label_lookup$html_label, label_lookup$Sample)
+  label_map <- label_map[levels(df_collapsed$Sample)]
+
+  p_main <- ggplot(df_collapsed, aes(x = Sample, y = Abundance, fill = taxon_plot)) +
     geom_col(width = 0.85) +
     geom_vline(data = divider_df, aes(xintercept = divider),
                linetype = "dashed", color = "grey40") +
     facet_wrap(~environment, scales = "free_x") +
     scale_fill_manual(values = pal, name = rank) +
+    scale_x_discrete(labels = label_map) +
     labs(x = NULL, y = "Relative Abundance",
          title = sprintf("Taxonomic Composition by Treatment (%s level)",
                          tolower(rank))) +
     theme_bw() +
-    theme(axis.text.x = element_blank(),
-          axis.ticks.x = element_blank(),
+    theme(axis.text.x = element_markdown(angle = 45, hjust = 1, size = 7),
           legend.text = element_text(size = 7),
           legend.key.size = unit(0.35, "cm"),
           panel.grid.major.x = element_blank())
 
-  label_df <- df[!duplicated(df$Sample), c("Sample", "environment", "treatment", "env_treat")]
-  label_df$x <- factor(label_df$Sample, levels = sample_order)
-  label_df$group <- label_df$env_treat
-
-  strip <- ggplot(label_df, aes(x = x, y = 1, fill = group)) +
-    geom_tile(width = 0.85, height = 1) +
-    geom_text(aes(label = x, color = group), size = 2.2, fontface = "bold",
-              angle = 45, hjust = 1) +
-    facet_wrap(~environment, scales = "free_x") +
-    scale_fill_manual(values = ENV_TREAT_COLORS, guide = "none") +
-    scale_color_manual(values = ENV_TREAT_TEXT, guide = "none") +
-    theme_void() +
-    theme(strip.text = element_blank(),
-          plot.margin = margin(0, 5.5, 5.5, 5.5))
-
-  ggsave(file.path(OUT, sub("\\.pdf$", "_main.pdf", fig_name)), p_main,
-         width = 12, height = 5.3)
-  ggsave(file.path(OUT, sub("\\.pdf$", "_strip.pdf", fig_name)), strip,
-         width = 12, height = 1.1)
-
-  stack_with_strip(p_main, strip, file.path(OUT, fig_name),
-                   width = 12, height = 6.4, strip_height_in = 1.1)
+  ggsave(file.path(OUT, fig_name), p_main, width = 12, height = 6.5)
 
   invisible(list(plot = p_main, top_taxa = top_taxa, palette = pal))
 }
@@ -267,44 +222,38 @@ build_taxon_fig_averaged <- function(ps_in, rank, fig_name, palette_taxa,
   df$taxon_plot <- ifelse(df[[rank]] %in% palette_taxa,
                           as.character(df[[rank]]),
                           "Other (<1% mean abundance)")
-  df$taxon_plot <- factor(df$taxon_plot,
-                          levels = c(palette_taxa, "Other (<1% mean abundance)"))
   df$treatment <- factor(df$treatment, levels = c("control", "roundup"))
 
   avg_df <- df %>%
     group_by(environment, treatment, taxon_plot) %>%
-    summarise(mean_abundance = mean(Abundance), .groups = "drop")
+    summarise(mean_abundance = sum(Abundance) / n_distinct(Sample), .groups = "drop")
+
+  avg_df$taxon_plot <- factor(avg_df$taxon_plot,
+                              levels = c(palette_taxa, "Other (<1% mean abundance)"))
+
+  label_lookup <- avg_df %>%
+    distinct(environment, treatment) %>%
+    mutate(env_treat = paste(environment, treatment, sep = "."),
+           html_label = sprintf(
+             "<span style='background-color:%s;color:%s;padding:1px 4px;border-radius:2px;'>%s</span>",
+             ENV_TREAT_COLORS[env_treat], ENV_TREAT_TEXT[env_treat], treatment
+           ))
+  label_map <- setNames(label_lookup$html_label, as.character(label_lookup$treatment))
 
   p_main <- ggplot(avg_df, aes(x = treatment, y = mean_abundance, fill = taxon_plot)) +
     geom_col(width = 0.6) +
     facet_wrap(~environment) +
     scale_fill_manual(values = palette_colors, name = rank) +
+    scale_x_discrete(labels = label_map) +
     labs(x = NULL, y = "Mean Relative Abundance",
          title = sprintf("Treatment-Averaged Composition (%s level)",
                          tolower(rank))) +
     theme_bw() +
-    theme(axis.text.x = element_blank(),
-          axis.ticks.x = element_blank(),
+    theme(axis.text.x = element_markdown(size = 8),
           legend.text = element_text(size = 7),
           legend.key.size = unit(0.35, "cm"))
 
-  label_df <- avg_df %>%
-    distinct(environment, treatment) %>%
-    mutate(group = paste(environment, treatment, sep = "."),
-           x = treatment)
-
-  strip <- ggplot(label_df, aes(x = x, y = 1, fill = group)) +
-    geom_tile(width = 0.6, height = 1) +
-    geom_text(aes(label = x, color = group), size = 2.6, fontface = "bold") +
-    facet_wrap(~environment) +
-    scale_fill_manual(values = ENV_TREAT_COLORS, guide = "none") +
-    scale_color_manual(values = ENV_TREAT_TEXT, guide = "none") +
-    theme_void() +
-    theme(strip.text = element_blank(),
-          plot.margin = margin(0, 5.5, 5.5, 5.5))
-
-  stack_with_strip(p_main, strip, file.path(OUT, fig_name),
-                   width = 9, height = 6.6, strip_height_in = 0.6)
+  ggsave(file.path(OUT, fig_name), p_main, width = 9, height = 6)
   invisible(p_main)
 }
 
@@ -417,27 +366,19 @@ p_resp_main <- ggplot(resp_summary,
         axis.text.x = element_blank(),
         axis.ticks.x = element_blank())
 
-n_panels <- length(unique(resp_summary$panel))
-n_cols <- 3
-n_rows <- ceiling(n_panels / n_cols)
+label_map_resp <- c(
+  "control" = sprintf("<span style='background-color:%s;color:%s;padding:1px 4px;border-radius:2px;'>control</span>",
+                      ENV_TREAT_COLORS["gut.control"], ENV_TREAT_TEXT["gut.control"]),
+  "roundup" = sprintf("<span style='background-color:%s;color:%s;padding:1px 4px;border-radius:2px;'>roundup</span>",
+                      ENV_TREAT_COLORS["gut.roundup"], ENV_TREAT_TEXT["gut.roundup"])
+)
 
-strip_resp_df <- data.frame(treatment = factor(c("control", "roundup"),
-                                               levels = c("control", "roundup"))) %>%
-  mutate(group = paste("gut", treatment, sep = "."), x = treatment)
+p_resp_main <- p_resp_main +
+  scale_x_discrete(labels = label_map_resp) +
+  theme(axis.text.x = element_markdown(size = 9))
 
-strip_resp <- ggplot(strip_resp_df, aes(x = x, y = 1, fill = group)) +
-  geom_tile(width = 0.6, height = 1) +
-  geom_text(aes(label = x, color = group), size = 2.6, fontface = "bold") +
-  scale_fill_manual(values = ENV_TREAT_COLORS, guide = "none") +
-  scale_color_manual(values = ENV_TREAT_TEXT, guide = "none") +
-  theme_void() +
-  theme(plot.margin = margin(0, 5.5, 5.5, 5.5))
-
-# One strip placed once beneath the full facet grid (all panels share the
-# same control/roundup x-axis), rather than repeating per facet.
-stack_with_strip(p_resp_main, strip_resp,
-                 file.path(OUT, "figure_6_top_responders.pdf"),
-                 width = 12, height = 10 + 0.4, strip_height_in = 0.4)
+ggsave(file.path(OUT, "figure_6_top_responders.pdf"), p_resp_main,
+       width = 12, height = 10)
 cat("Figure 6 saved\n")
 
 # Figure 7. Significant genera box plots, dodged by treatment along a
