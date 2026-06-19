@@ -64,3 +64,11 @@ There is no standard convention for placing error bars directly on segments with
 scripts/r/02_denoising_stats_figure.R generates Figure 1.
 scripts/r/08_generate_missing_figures.R generates Figures 2, 2b, 2c, 2d, 3, 6, 7, 8.
 Figures 4, 5a, 5b, 5c, 9 come from the original pilot pipeline (scripts/r/03_pilot_analysis.R, scripts/r/05_epsps_overlay.R, scripts/r/06_epsps_summary_by_treatment.R, scripts/r/07_diversity_figures.R).
+
+## Note on raw QIIME2 outputs
+
+The large QIIME2 pipeline binaries (.qza, .qzv, raw and trimmed fastq.gz, ~983 MB total) are not stored in this git repository; they exceed GitHub's 100 MB per-file limit and are pipeline intermediates rather than independent source data. They are stored at:
+
+s3://earthworm-pilot-2018/results/qiime2/
+
+This includes demux.qza, demux-untrimmed.qza, trimmed.qza, forward.fastq.gz, table.qza, taxonomy.qza, rooted-tree.qza, and related intermediates. The small derived exports needed for downstream analysis (denoising stats, feature table, taxonomy, tree, all as plain text) are committed to this repo under results/qiime2_denoising_stats_export/ and results/r/exported/.
