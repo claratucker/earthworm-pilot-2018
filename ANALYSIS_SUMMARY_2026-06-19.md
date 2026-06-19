@@ -34,7 +34,7 @@ Does soil differ from gut microbiome? Yes, substantially.
 
 Not part of the original pipeline. The analyses above (PERMANOVA, Mann-Whitney U) all test community-level or per-sample summary effects. DESeq2 (Love et al. 2014) was added to test individual ASVs directly, restricted to gut (n=8/group), since soil's n=3/group does not support reliable dispersion estimation.
 
-Results: 33 significant ASVs at padj < 0.05 (10 enriched, 23 depleted under Roundup). This is not a contradiction of the gut PERMANOVA non-effect (p=0.269): PERMANOVA is an omnibus test of overall composition, while DESeq2 finds individual taxa that move significantly even when the community as a whole does not shift detectably. Cross-checked against EPSPS class: the 33 significant ASVs are not stratified by Class I/II, so the taxon-level response is not organized around glyphosate target-site sensitivity.
+Results: 33 significant ASVs at padj < 0.05 (10 enriched, 23 depleted under Roundup). PERMANOVA (p=0.269) is an omnibus test of overall composition, while DESeq2 finds individual taxa that move significantly even when the community as a whole does not shift detectably. Cross-checked against EPSPS class: the 33 significant ASVs are not stratified by Class I/II, so the taxon-level response is not organized around glyphosate target-site sensitivity.
 
 Output: deseq2_gut_roundup_vs_control.csv (all tested ASVs). Figures: top responders (point + SE), significant-genera box plots (17 genera with at least one significant ASV), volcano plot (|log2FC| >= 1, padj < 0.05 thresholds).
 
