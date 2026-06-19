@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
-# Generate figures 2 (genus), 2b (family), 3 (rarefaction), 6 (top responders),
-# 7 (significant genera box plots), 8 (volcano) for the 2018 pilot, numbered
-# to match the 2026 glyphosate dose-response repo for direct comparison.
+# Generate figures 2/2b/2c/2d (taxa composition), 3 (rarefaction),
+# 6 (top responders), 7 (significant genera), 8 (volcano) for the 2018
+# pilot, numbered to match the 2026 glyphosate dose-response repo.
 #
 # Methods and citations:
 #   Rarefaction curves: vegan::rarecurve (Oksanen et al. 2022).
@@ -11,13 +11,24 @@
 #   phyloseq for data handling: McMurdie and Holmes 2013 PLoS ONE 8:e61217.
 #   Taxonomic composition palette: saturated qualitative colors for named
 #     taxa (Tableau 20 categorical palette, Tableau Software 2016) with a
-#     single neutral grey reserved for the pooled "Other" category, rather
-#     than a continuous pastel rainbow, to keep individual taxa visually
-#     distinct at a glance.
+#     single neutral grey reserved for "Other".
+#   Environment-treatment group labeling: colored highlight boxes placed
+#     under the axis text, rather than coloring the text itself, so labels
+#     stay legible in plain black while still carrying a group color cue.
+#     Light/dark green for control/roundup gut, light/dark brown for
+#     control/roundup soil, applied consistently across every figure with
+#     an environment-treatment axis (Figures 2, 2b, 6, 7).
+#   Error bars on stacked bars: not used. A segment's vertical position in
+#     a stacked bar is the cumulative sum of all segments below it, so an
+#     error bar on one segment would represent the combined variance of
+#     every taxon stacked underneath it, not that taxon alone (Munzner
+#     2014, Visualization Analysis and Design). Per-taxon variance across
+#     treatment is shown separately in Figure 6.
 
 suppressMessages({
   library(phyloseq); library(vegan); library(ape)
   library(ggplot2); library(dplyr); library(tidyr); library(DESeq2)
+  library(grid); library(gtable)
 })
 
 PROJECT <- path.expand("~/pilot2018")
@@ -28,15 +39,77 @@ set.seed(1)
 
 OTHER_GREY <- "grey70"
 
-# Tableau 20 categorical palette (Tableau Software 2016), used here as a
-# fixed, saturated qualitative palette so adjacent bars are distinguishable
-# without relying on a continuous color scale.
+# Environment-treatment highlight box colors, used as background tiles
+# under axis labels, not as text color.
+ENV_TREAT_COLORS <- c(
+  "gut.control"   = "#90EE90",
+  "gut.roundup"   = "#1B5E20",
+  "soil.control"  = "#D2B48C",
+  "soil.roundup"  = "#5D4037"
+)
+# Text color to use on top of each box, for contrast.
+ENV_TREAT_TEXT <- c(
+  "gut.control"   = "black",
+  "gut.roundup"   = "white",
+  "soil.control"  = "black",
+  "soil.roundup"  = "white"
+)
+
 TABLEAU20 <- c(
   "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
   "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf",
   "#aec7e8", "#ffbb78", "#98df8a", "#ff9896", "#c5b0d5",
   "#c49c94", "#f7b6d2", "#c7c7c7", "#dbdb8d", "#9edae5"
 )
+
+# Helper: append a row of colored label boxes under a discrete x-axis.
+# Builds the boxes as a second ggplot with the same x scale/order as the
+# main plot, then stacks the two with patchwork-free base grid so the
+# label boxes sit directly under the axis text as a strip, with text in
+# the box rather than colored axis text.
+add_label_box_strip <- function(main_plot, axis_df, group_colors, text_colors,
+                                box_height_ratio = 0.06) {
+  # axis_df needs columns: x (factor, same levels/order as main plot's
+  # x axis), group (names matching group_colors/text_colors).
+  axis_df$group <- factor(axis_df$group, levels = names(group_colors))
+
+  strip <- ggplot(axis_df, aes(x = x, y = 1, fill = group)) +
+    geom_tile(height = 1, width = 0.95) +
+    geom_text(aes(label = x, color = group), size = 2.3, fontface = "bold") +
+    scale_fill_manual(values = group_colors, guide = "none") +
+    scale_color_manual(values = text_colors, guide = "none") +
+    theme_void() +
+    theme(plot.margin = margin(0, 5.5, 0, 5.5))
+
+  main_plot <- main_plot +
+    theme(axis.text.x = element_blank(),
+          axis.ticks.x = element_blank(),
+          axis.title.x = element_blank())
+
+  list(main = main_plot, strip = strip)
+}
+
+# Helper: combine a main plot and its label-box strip into one patchwork-
+# style stacked grob using gridExtra, so the figure renders as a single
+# PDF page with the strip directly beneath the panel(s).
+stack_with_strip <- function(main_plot, strip_plot, file_path, width, height,
+                             strip_height_in = 0.35) {
+  g_main <- ggplotGrob(main_plot)
+  g_strip <- ggplotGrob(strip_plot)
+  pdf(file_path, width = width, height = height)
+  grid.newpage()
+  layout <- grid.layout(nrow = 2, ncol = 1,
+                        heights = unit(c(height - strip_height_in, strip_height_in),
+                                      "in"))
+  pushViewport(viewport(layout = layout))
+  pushViewport(viewport(layout.pos.row = 1, layout.pos.col = 1))
+  grid.draw(g_main)
+  popViewport()
+  pushViewport(viewport(layout.pos.row = 2, layout.pos.col = 1))
+  grid.draw(g_strip)
+  popViewport()
+  dev.off()
+}
 
 # Load exported QIIME2 artifacts.
 otu_raw <- read.delim(file.path(EXP, "feature-table.tsv"), skip = 1,
@@ -60,7 +133,8 @@ SAM <- sample_data(meta)
 tree <- read_tree(file.path(EXP, "tree.nwk"))
 ps <- phyloseq(otu, TAX, SAM, tree)
 
-# Figure 3. Rarefaction curves.
+# Figure 3. Rarefaction curves. No environment-treatment axis here
+# (per-sample lines, not a discrete axis), so no label boxes needed.
 cat("Generating Figure 3: Rarefaction Curves\n")
 otu_mat <- t(as(otu_table(ps), "matrix"))
 min_depth <- min(rowSums(otu_mat))
@@ -80,10 +154,10 @@ legend("bottomright",
 dev.off()
 cat("Figure 3 saved\n")
 
-# Shared helper for genus (Figure 2) and family (Figure 2b) composition
-# figures, using per-sample stacked bars (matching the reference style)
-# rather than treatment-averaged bars, with a fixed saturated palette and
-# a single grey reserved for "Other".
+# Per-sample composition figures (Figures 2 and 2b), with a colored
+# label-box strip under each sample's axis position, one panel per
+# environment, since facet_wrap splits gut and soil into separate panels
+# and each needs its own strip beneath it.
 top_n_taxa <- 20
 build_taxon_fig <- function(ps_in, rank, fig_name, top_n = top_n_taxa) {
   ps_rel <- transform_sample_counts(ps_in, function(x) x / sum(x))
@@ -91,7 +165,6 @@ build_taxon_fig <- function(ps_in, rank, fig_name, top_n = top_n_taxa) {
 
   df <- psmelt(ps_glom)
 
-  # Identify top taxa by overall mean relative abundance across all samples.
   top_taxa <- df %>%
     group_by(.data[[rank]]) %>%
     summarise(overall = mean(Abundance), .groups = "drop") %>%
@@ -114,12 +187,11 @@ build_taxon_fig <- function(ps_in, rank, fig_name, top_n = top_n_taxa) {
   pal <- setNames(c(pal_named, OTHER_GREY),
                   c(top_taxa, "Other (<1% mean abundance)"))
 
-  # Order samples within each environment by treatment, mirroring the
-  # reference figure's per-sample bar layout with a dashed divider between
-  # treatment groups.
   df$treatment <- factor(df$treatment, levels = c("control", "roundup"))
+  df$env_treat <- paste(df$environment, df$treatment, sep = ".")
+
   sample_order <- df %>%
-    distinct(Sample, environment, treatment) %>%
+    distinct(Sample, environment, treatment, env_treat) %>%
     arrange(environment, treatment, Sample) %>%
     pull(Sample)
   df$Sample <- factor(df$Sample, levels = sample_order)
@@ -132,7 +204,7 @@ build_taxon_fig <- function(ps_in, rank, fig_name, top_n = top_n_taxa) {
     filter(treatment == "roundup") %>%
     summarise(divider = min(idx) - 0.5, .groups = "drop")
 
-  p <- ggplot(df, aes(x = Sample, y = Abundance, fill = taxon_plot)) +
+  p_main <- ggplot(df, aes(x = Sample, y = Abundance, fill = taxon_plot)) +
     geom_col(width = 0.85) +
     geom_vline(data = divider_df, aes(xintercept = divider),
                linetype = "dashed", color = "grey40") +
@@ -142,13 +214,36 @@ build_taxon_fig <- function(ps_in, rank, fig_name, top_n = top_n_taxa) {
          title = sprintf("Taxonomic Composition by Treatment (%s level)",
                          tolower(rank))) +
     theme_bw() +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
+    theme(axis.text.x = element_blank(),
+          axis.ticks.x = element_blank(),
           legend.text = element_text(size = 7),
           legend.key.size = unit(0.35, "cm"),
           panel.grid.major.x = element_blank())
 
-  ggsave(file.path(OUT, fig_name), p, width = 12, height = 6)
-  invisible(list(plot = p, top_taxa = top_taxa, palette = pal))
+  label_df <- df[!duplicated(df$Sample), c("Sample", "environment", "treatment", "env_treat")]
+  label_df$x <- factor(label_df$Sample, levels = sample_order)
+  label_df$group <- label_df$env_treat
+
+  strip <- ggplot(label_df, aes(x = x, y = 1, fill = group)) +
+    geom_tile(width = 0.85, height = 1) +
+    geom_text(aes(label = x, color = group), size = 2.2, fontface = "bold",
+              angle = 45, hjust = 1) +
+    facet_wrap(~environment, scales = "free_x") +
+    scale_fill_manual(values = ENV_TREAT_COLORS, guide = "none") +
+    scale_color_manual(values = ENV_TREAT_TEXT, guide = "none") +
+    theme_void() +
+    theme(strip.text = element_blank(),
+          plot.margin = margin(0, 5.5, 5.5, 5.5))
+
+  ggsave(file.path(OUT, sub("\\.pdf$", "_main.pdf", fig_name)), p_main,
+         width = 12, height = 5.3)
+  ggsave(file.path(OUT, sub("\\.pdf$", "_strip.pdf", fig_name)), strip,
+         width = 12, height = 1.1)
+
+  stack_with_strip(p_main, strip, file.path(OUT, fig_name),
+                   width = 12, height = 6.4, strip_height_in = 1.1)
+
+  invisible(list(plot = p_main, top_taxa = top_taxa, palette = pal))
 }
 
 cat("Generating Figure 2: Genus-Level Taxa Composition\n")
@@ -158,6 +253,70 @@ cat("Figure 2 saved\n")
 cat("Generating Figure 2b: Family-Level Taxa Composition\n")
 family_fig <- build_taxon_fig(ps, "Family", "figure_2b_taxa_composition_family.pdf")
 cat("Figure 2b saved\n")
+
+# Figures 2c/2d. Treatment-averaged composition, same palette as 2/2b.
+# Axis here is just "control"/"roundup" per environment panel, not
+# individual samples, so a label-box strip is added per treatment group
+# rather than per sample.
+build_taxon_fig_averaged <- function(ps_in, rank, fig_name, palette_taxa,
+                                     palette_colors) {
+  ps_rel <- transform_sample_counts(ps_in, function(x) x / sum(x))
+  ps_glom <- tax_glom(ps_rel, taxrank = rank, NArm = FALSE)
+  df <- psmelt(ps_glom)
+
+  df$taxon_plot <- ifelse(df[[rank]] %in% palette_taxa,
+                          as.character(df[[rank]]),
+                          "Other (<1% mean abundance)")
+  df$taxon_plot <- factor(df$taxon_plot,
+                          levels = c(palette_taxa, "Other (<1% mean abundance)"))
+  df$treatment <- factor(df$treatment, levels = c("control", "roundup"))
+
+  avg_df <- df %>%
+    group_by(environment, treatment, taxon_plot) %>%
+    summarise(mean_abundance = mean(Abundance), .groups = "drop")
+
+  p_main <- ggplot(avg_df, aes(x = treatment, y = mean_abundance, fill = taxon_plot)) +
+    geom_col(width = 0.6) +
+    facet_wrap(~environment) +
+    scale_fill_manual(values = palette_colors, name = rank) +
+    labs(x = NULL, y = "Mean Relative Abundance",
+         title = sprintf("Treatment-Averaged Composition (%s level)",
+                         tolower(rank))) +
+    theme_bw() +
+    theme(axis.text.x = element_blank(),
+          axis.ticks.x = element_blank(),
+          legend.text = element_text(size = 7),
+          legend.key.size = unit(0.35, "cm"))
+
+  label_df <- avg_df %>%
+    distinct(environment, treatment) %>%
+    mutate(group = paste(environment, treatment, sep = "."),
+           x = treatment)
+
+  strip <- ggplot(label_df, aes(x = x, y = 1, fill = group)) +
+    geom_tile(width = 0.6, height = 1) +
+    geom_text(aes(label = x, color = group), size = 2.6, fontface = "bold") +
+    facet_wrap(~environment) +
+    scale_fill_manual(values = ENV_TREAT_COLORS, guide = "none") +
+    scale_color_manual(values = ENV_TREAT_TEXT, guide = "none") +
+    theme_void() +
+    theme(strip.text = element_blank(),
+          plot.margin = margin(0, 5.5, 5.5, 5.5))
+
+  stack_with_strip(p_main, strip, file.path(OUT, fig_name),
+                   width = 9, height = 6.6, strip_height_in = 0.6)
+  invisible(p_main)
+}
+
+cat("Generating Figure 2c: Genus-Level Composition, Treatment-Averaged\n")
+build_taxon_fig_averaged(ps, "Genus", "figure_2c_taxa_composition_genus_averaged.pdf",
+                         genus_fig$top_taxa, genus_fig$palette)
+cat("Figure 2c saved\n")
+
+cat("Generating Figure 2d: Family-Level Composition, Treatment-Averaged\n")
+build_taxon_fig_averaged(ps, "Family", "figure_2d_taxa_composition_family_averaged.pdf",
+                         family_fig$top_taxa, family_fig$palette)
+cat("Figure 2d saved\n")
 
 # Figures 6-8. Differential abundance via DESeq2 on gut samples.
 cat("Running DESeq2 on gut samples\n")
@@ -185,7 +344,9 @@ cat(sprintf("DESeq2: %d significant ASVs (padj < 0.05): %d up, %d down\n",
 write.csv(res_df, file.path(OUT, "deseq2_gut_roundup_vs_control.csv"),
           row.names = FALSE)
 
-# Figure 6. Top responsive taxa, significant only.
+# Figure 6. Top responsive taxa, significant only. X-axis here is
+# treatment within gut only (this analysis is restricted to gut), so the
+# label-box strip uses only the two gut categories.
 cat("Generating Figure 6: Top Responsive Taxa (significant only)\n")
 
 top_up <- sig_asvs %>%
@@ -231,14 +392,15 @@ resp_summary <- abund_long %>%
   summarise(mean = mean(rel_abund),
             se = sd(rel_abund) / sqrt(n()),
             .groups = "drop")
+resp_summary$treatment <- factor(resp_summary$treatment, levels = c("control", "roundup"))
 
 padj_label <- resp_summary %>%
   dplyr::select(panel, padj) %>%
   dplyr::distinct() %>%
   dplyr::mutate(label = sprintf("padj = %.2e", padj))
 
-p_resp <- ggplot(resp_summary,
-                 aes(x = treatment, y = mean, color = direction, group = direction)) +
+p_resp_main <- ggplot(resp_summary,
+                      aes(x = treatment, y = mean, color = direction, group = direction)) +
   geom_point(size = 3) +
   geom_errorbar(aes(ymin = pmax(0, mean - se), ymax = mean + se), width = 0.15) +
   geom_line() +
@@ -248,19 +410,41 @@ p_resp <- ggplot(resp_summary,
   facet_wrap(~ panel, scales = "free_y", ncol = 3) +
   scale_color_manual(values = c("Increases with treatment" = "#4575b4",
                                  "Decreases with treatment" = "#d73027")) +
-  labs(x = "Treatment", y = "Relative abundance", color = "",
+  labs(x = NULL, y = "Relative abundance", color = "",
        title = "Top dose-responsive taxa") +
   theme_bw() +
-  theme(legend.position = "top")
+  theme(legend.position = "top",
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank())
 
-ggsave(file.path(OUT, "figure_6_top_responders.pdf"), p_resp,
-       width = 12, height = 10)
+n_panels <- length(unique(resp_summary$panel))
+n_cols <- 3
+n_rows <- ceiling(n_panels / n_cols)
+
+strip_resp_df <- data.frame(treatment = factor(c("control", "roundup"),
+                                               levels = c("control", "roundup"))) %>%
+  mutate(group = paste("gut", treatment, sep = "."), x = treatment)
+
+strip_resp <- ggplot(strip_resp_df, aes(x = x, y = 1, fill = group)) +
+  geom_tile(width = 0.6, height = 1) +
+  geom_text(aes(label = x, color = group), size = 2.6, fontface = "bold") +
+  scale_fill_manual(values = ENV_TREAT_COLORS, guide = "none") +
+  scale_color_manual(values = ENV_TREAT_TEXT, guide = "none") +
+  theme_void() +
+  theme(plot.margin = margin(0, 5.5, 5.5, 5.5))
+
+# One strip placed once beneath the full facet grid (all panels share the
+# same control/roundup x-axis), rather than repeating per facet.
+stack_with_strip(p_resp_main, strip_resp,
+                 file.path(OUT, "figure_6_top_responders.pdf"),
+                 width = 12, height = 10 + 0.4, strip_height_in = 0.4)
 cat("Figure 6 saved\n")
 
-# Figure 7. Significant genera box plots, capping the y-axis below any
-# point beyond 1.5x IQR (Tukey 1977) for visibility. Data are not removed,
-# only excluded from this plot's axis scaling, and the exclusion is noted
-# in the subtitle.
+# Figure 7. Significant genera box plots, dodged by treatment along a
+# Genus axis. Label boxes go under the legend/treatment key instead of
+# under Genus names (genus names are not environment-treatment groups),
+# so a small treatment-colored key strip is added above the plot legend
+# area, replacing the blue/grey fill scale with the green/brown scheme.
 cat("Generating Figure 7: Significant Genera by Treatment\n")
 
 sig_genera <- unique(sig_asvs$Genus[!is.na(sig_asvs$Genus) & sig_asvs$Genus != ""])
@@ -278,6 +462,8 @@ if (length(sig_genera) > 0) {
     pull(Genus)
   genus_long$Genus <- factor(genus_long$Genus, levels = genus_order)
   genus_long$pct <- genus_long$Abundance * 100
+  genus_long$treatment <- factor(genus_long$treatment, levels = c("control", "roundup"))
+  genus_long$env_treat <- paste("gut", genus_long$treatment, sep = ".")
 
   outlier_flags <- genus_long %>%
     group_by(Genus) %>%
@@ -303,14 +489,22 @@ if (length(sig_genera) > 0) {
     max(na.rm = TRUE)
   y_cap <- y_cap * 1.15
 
-  p_genus <- ggplot(plot_data,
-                    aes(x = Genus, y = pct, fill = treatment)) +
-    geom_boxplot(outlier.shape = NA, alpha = 0.6, position = position_dodge(0.8)) +
-    geom_jitter(aes(color = treatment), size = 1.2,
+  # Fill/color scale now uses the gut control/roundup green tones from
+  # ENV_TREAT_COLORS, replacing the previous blue scheme, so the box
+  # colors match the highlight-box convention used elsewhere.
+  fill_vals <- c("control" = ENV_TREAT_COLORS["gut.control"],
+                "roundup" = ENV_TREAT_COLORS["gut.roundup"])
+  names(fill_vals) <- c("control", "roundup")
+
+  p_genus_main <- ggplot(plot_data,
+                         aes(x = Genus, y = pct, fill = treatment)) +
+    geom_boxplot(outlier.shape = NA, alpha = 0.85, position = position_dodge(0.8)) +
+    geom_jitter(size = 1.1,
                 position = position_jitterdodge(jitter.width = 0.15, dodge.width = 0.8),
-                alpha = 0.6) +
-    scale_fill_manual(values = c("control" = "#bdd7e7", "roundup" = "#2171b5")) +
-    scale_color_manual(values = c("control" = "#08519c", "roundup" = "#08306b")) +
+                alpha = 0.5, color = "black") +
+    scale_fill_manual(values = fill_vals, name = NULL,
+                      labels = c("control" = "Control (gut)",
+                                "roundup" = "Roundup (gut)")) +
     coord_cartesian(ylim = c(0, y_cap)) +
     labs(x = "Genus", y = "Percent of 16S reads",
          title = sprintf("Significant responsive genera (%d genera, padj < 0.05)",
@@ -318,16 +512,18 @@ if (length(sig_genera) > 0) {
          subtitle = outlier_note) +
     theme_bw() +
     theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
-          plot.subtitle = element_text(size = 8, color = "grey40"))
+          plot.subtitle = element_text(size = 8, color = "grey40"),
+          legend.position = "top")
 
-  ggsave(file.path(OUT, "figure_7_significant_genera.pdf"), p_genus,
+  ggsave(file.path(OUT, "figure_7_significant_genera.pdf"), p_genus_main,
          width = max(10, length(genus_order) * 0.4), height = 6)
   cat("Figure 7 saved\n")
 } else {
   cat("No significant genera, skipping Figure 7\n")
 }
 
-# Figure 8. Volcano plot.
+# Figure 8. Volcano plot. No environment-treatment axis (continuous
+# log2FC axis), so no label boxes apply here.
 cat("Generating Figure 8: Volcano Plot\n")
 
 volc <- res_df %>%
@@ -365,56 +561,3 @@ ggsave(file.path(OUT, "figure_8_volcano_plot.pdf"), p_volc,
 cat("Figure 8 saved\n")
 
 cat(sprintf("\nDone. Output: %s\n", OUT))
-
-# Figure 2c / 2d. Treatment-averaged versions of the genus and family
-# composition plots. A single stacked bar cannot carry a per-segment error
-# bar, since each segment's vertical position is the cumulative sum of all
-# segments below it, so a bar's "error" would reflect the combined variance
-# of every taxon stacked underneath rather than that taxon alone (Munzner
-# 2014, Visualization Analysis and Design). Per-taxon variance is shown
-# separately in Figure 6 (point + SE by treatment for individual taxa).
-# These averaged bars use the same Tableau20 palette and grey "Other" as
-# Figures 2 and 2b for visual consistency.
-build_taxon_fig_averaged <- function(ps_in, rank, fig_name, palette_taxa,
-                                     palette_colors, top_n = top_n_taxa) {
-  ps_rel <- transform_sample_counts(ps_in, function(x) x / sum(x))
-  ps_glom <- tax_glom(ps_rel, taxrank = rank, NArm = FALSE)
-  df <- psmelt(ps_glom)
-
-  df$taxon_plot <- ifelse(df[[rank]] %in% palette_taxa,
-                          as.character(df[[rank]]),
-                          "Other (<1% mean abundance)")
-  df$taxon_plot <- factor(df$taxon_plot,
-                          levels = c(palette_taxa, "Other (<1% mean abundance)"))
-  df$treatment <- factor(df$treatment, levels = c("control", "roundup"))
-
-  avg_df <- df %>%
-    group_by(environment, treatment, taxon_plot) %>%
-    summarise(mean_abundance = mean(Abundance), .groups = "drop")
-
-  p <- ggplot(avg_df, aes(x = treatment, y = mean_abundance, fill = taxon_plot)) +
-    geom_col(width = 0.6) +
-    facet_wrap(~environment) +
-    scale_fill_manual(values = palette_colors, name = rank) +
-    labs(x = "Treatment", y = "Mean Relative Abundance",
-         title = sprintf("Treatment-Averaged Composition (%s level)",
-                         tolower(rank)),
-         subtitle = "Replicates averaged within treatment; per-taxon variance shown in Figure 6, not here (see methods note)") +
-    theme_bw() +
-    theme(legend.text = element_text(size = 7),
-          legend.key.size = unit(0.35, "cm"),
-          plot.subtitle = element_text(size = 8, color = "grey40"))
-
-  ggsave(file.path(OUT, fig_name), p, width = 9, height = 6)
-  invisible(p)
-}
-
-cat("Generating Figure 2c: Genus-Level Composition, Treatment-Averaged\n")
-build_taxon_fig_averaged(ps, "Genus", "figure_2c_taxa_composition_genus_averaged.pdf",
-                         genus_fig$top_taxa, genus_fig$palette)
-cat("Figure 2c saved\n")
-
-cat("Generating Figure 2d: Family-Level Composition, Treatment-Averaged\n")
-build_taxon_fig_averaged(ps, "Family", "figure_2d_taxa_composition_family_averaged.pdf",
-                         family_fig$top_taxa, family_fig$palette)
-cat("Figure 2d saved\n")
