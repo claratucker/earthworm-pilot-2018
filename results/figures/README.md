@@ -1,21 +1,56 @@
-# Significant Figures
+# Figures - 2018 Earthworm-Glyphosate Pilot Study
 
-Publication-quality figures from earthworm pilot 2018 microbiome analysis.
+All analysis figures are stored here as PDFs, organized by analysis type.
 
-## Figure 1: Beta Diversity, Gut Environment
-NMDS ordination of gut microbiome (n=16) showing Bray-Curtis distances. Control (light green) vs Roundup (dark green). Stress=0.445, R²=0.0724, pseudo-F=1.093, p=0.269 (999 permutations, NS).
+## Sequencing & Quality Control
 
-## Figure 2: Beta Diversity, Soil Environment
-NMDS ordination of soil microbiome (n=6) showing Bray-Curtis distances. Control (light brown) vs Roundup (dark brown). Stress=0.373, R²=0.1944, pseudo-F=0.965, p=0.499 (999 permutations, NS). Underpowered but consistent with Gut non-effect.
+**figure_1_denoising_stats.pdf**
+Read retention through DADA2 denoising and chimera removal pipeline. Input: 20,528-161,535 reads/sample. Non-chimeric retention: 44.6-90.4% (mean 57.4%).
 
-## Figure 3: EPSPS Class Distribution by Treatment
-Class I (Sensitive) and Class II (Resistant) relative abundance by treatment and environment (2x2 grid). Mann-Whitney U tests. No significant treatment effect in either environment.
+## Community Composition & Taxonomy
 
-## Figure 4: Alpha Diversity by Environment and Treatment
-Shannon diversity and observed richness stratified by environment. Environment effect significant (p<0.05). No treatment effect (p>0.05).
+**figure_5_taxa_composition.pdf**
+Treatment-averaged relative abundance at genus level. Gut dominated by Staphylococcus and Pseudomonas; soil shows Allivibrio and Colwellia as major contributors.
 
-## Figure 5: Taxonomic Composition by Treatment
-Top genera by mean relative abundance (>=1% threshold) shown as stacked bars for Gut and Soil, colored consistently by genus across both panels. Treatment shown via background highlight box on each sample's x-axis label (light/dark by treatment, green family for Gut, brown family for Soil).
+## Diversity Analysis
 
-## Figure 6: Combined NMDS, Gut vs Soil
-NMDS ordination of all 22 samples showing Bray-Curtis distances, with all four environment x treatment groups (Gut Control, Gut Roundup, Soil Control, Soil Roundup) plotted together. Circles = Gut, squares = Soil. 95% confidence ellipses shown per group. PERMANOVA confirms significant environment effect: R²=0.0791, pseudo-F=1.717, p=0.003 (999 permutations). PERMDISP shows no significant difference in within-group dispersion between environments: F=0.0002, p=0.988.
+**figure_3_rarefaction.pdf**
+Rarefaction curves showing sequencing depth saturation. Rarefaction depth: 10,903 reads. All samples plateau, indicating adequate sequencing depth.
+
+**figure_4_alpha_diversity_by_environment.pdf**
+Shannon diversity and observed richness by environment and treatment. Gut significantly more diverse than soil (Kruskal-Wallis p=0.0402).
+
+## Beta Diversity / Ordination
+
+**figure_6_nmds_all_samples_gut_vs_soil.pdf**
+NMDS ordination of all 22 samples (gut and soil, control and Roundup). PERMANOVA environment effect R²=0.0791, p=0.0001. NMDS stress=0.468.
+
+**figure_1_beta_diversity_gut.pdf**
+NMDS gut samples only (n=16, control and Roundup). Treatment effect R²=0.0724, p=0.2690 (not significant). NMDS stress=0.445.
+
+**figure_2_beta_diversity_soil.pdf**
+NMDS soil samples only (n=6, control and Roundup, descriptive). Treatment effect R²=0.1944, p=0.4990 (not significant). NMDS stress=0.373.
+
+## Differential Abundance (Gut, Control vs Roundup)
+
+**figure_8_top_responders.pdf**
+Top 6 enriched and 6 depleted taxa under Roundup in gut samples. Mean relative abundance with error bars.
+
+**figure_9_top_32_genera.pdf**
+Distribution of 32 most abundant genera in gut samples by treatment. Box plots with individual replicates.
+
+**figure_10_volcano_plot.pdf**
+Log2 fold change (Roundup/Control) versus mean relative abundance for all gut ASVs. Blue=enriched in Roundup (log2FC>1), red=depleted (log2FC<-1), gray=minimal change.
+
+## Functional Analysis
+
+**figure_3_epsps_by_treatment.pdf**
+EPSPS sensitivity class composition (Class I sensitive vs Class II/III resistant) by environment and treatment. No significant treatment effects (all Wilcoxon p>0.79).
+
+## Generation Scripts
+
+Figure generation scripts are in `scripts/r/`:
+- `02_denoising_stats_figure.R` - Generates Figure 1 (denoising stats)
+- `08_generate_missing_figures.R` - Generates Figures 3, 8, 9, 10 (rarefaction, responders, genera, volcano)
+
+Generated: June 19, 2026
