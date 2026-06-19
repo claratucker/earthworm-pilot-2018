@@ -13,3 +13,12 @@ results/picrust2_retry/
 .DS_Store
 *.swp
 *~
+
+# Large QIIME2 pipeline intermediates and raw sequencing data.
+# These exceed GitHub's 100MB file limit and are pipeline-derived,
+# not independent source data. Stored outside git (see README for location).
+results/qiime2/*.qza
+results/qiime2/*.qzv
+results/qiime2/*.fastq.gz
+results/qiime2/demux-log.txt
+results/qiime2/cutadapt-log.txt

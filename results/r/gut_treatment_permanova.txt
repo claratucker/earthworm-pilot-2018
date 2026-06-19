@@ -1,0 +1,37 @@
+=== GUT-ONLY glyphosate contrast (control gut n=8 vs roundup gut n=8) ===
+
+>> PERMANOVA, Bray-Curtis:
+Permutation test for adonis under reduced model
+Permutation: free
+Number of permutations: 9999
+
+adonis2(formula = bray_gut ~ treatment, data = gut_meta, permutations = 9999)
+         Df SumOfSqs     R2      F Pr(>F)
+Model     1   0.3341 0.0626 0.9349 0.5623
+Residual 14   5.0028 0.9374              
+Total    15   5.3369 1.0000              
+
+>> PERMANOVA, weighted UniFrac:
+Permutation test for adonis under reduced model
+Permutation: free
+Number of permutations: 9999
+
+adonis2(formula = wuf_gut ~ treatment, data = gut_meta, permutations = 9999)
+         Df SumOfSqs      R2      F Pr(>F)
+Model     1  0.11168 0.05081 0.7494 0.6977
+Residual 14  2.08633 0.94919              
+Total    15  2.19801 1.00000              
+
+>> Betadisper (dispersion) test, Bray-Curtis:
+
+Permutation test for homogeneity of multivariate dispersions
+Permutation: free
+Number of permutations: 9999
+
+Response: Distances
+          Df    Sum Sq   Mean Sq      F N.Perm Pr(>F)
+Groups     1 0.0020527 0.0020527 1.2634   9999 0.2842
+Residuals 14 0.0227474 0.0016248                     
+
+The Bray-Curtis R2 above is the PILOT EFFECT SIZE for powering the
+full study (feed it into the micropower simulation in section 4).

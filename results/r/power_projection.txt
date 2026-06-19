@@ -1,0 +1,6 @@
+Observed pilot effect size (gut, Bray-Curtis PERMANOVA R2): 0.063 
+
+micropower not installed. Heuristic: an R2 of this size is a 'large'
+community effect; n=8/group typically gives >0.8 power for R2>~0.15,
+while moderate effects (R2 0.05-0.10) need n~12-20/group. Install
+micropower for a defensible proposal figure (Kelly et al. 2015).
